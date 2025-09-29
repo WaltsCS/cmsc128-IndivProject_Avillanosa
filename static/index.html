@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>To‑Do List</title>
+<!-- Tailwind via CDN (ok for small school projects) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-slate-50 min-h-screen">
+<header class="max-w-3xl mx-auto px-4 py-6">
+<h1 class="text-3xl font-bold">✅ To‑Do List</h1>
+<p class="text-slate-600">Simple, fast, and accessible.</p>
+</header>
+
+
+<main class="max-w-3xl mx-auto px-4 pb-24">
+<!-- Add Task Card -->
+<section class="bg-white shadow-sm rounded-2xl p-4 md:p-6 space-y-4">
+<h2 class="text-xl font-semibold">Add a Task</h2>
+<form id="taskForm" class="grid md:grid-cols-6 gap-3" aria-label="Add a new task">
+<label class="md:col-span-3">
+<span class="block text-sm text-slate-600">Title</span>
+<input id="title" required class="input" type="text" placeholder="e.g., Finish CMSC142 lab" />
+</label>
+<label>
+<span class="block text-sm text-slate-600">Priority</span>
+<select id="priority" class="input">
+<option>High</option>
+<option>Mid</option>
+<option selected>Low</option>
+</select>
+</label>
+<label>
+<span class="block text-sm text-slate-600">Due Date</span>
+<input id="due_date" class="input" type="date" />
+</label>
+<label>
+<span class="block text-sm text-slate-600">Due Time</span>
+<input id="due_time" class="input" type="time" />
+</label>
+<div class="md:col-span-6 flex justify-end">
+<button class="btn-primary" type="submit">Add Task</button>
+</div>
+</form>
+</section>
+
+
+<!-- Sort Controls -->
+<section class="flex items-center justify-between mt-6">
+<div class="flex items-center gap-2">
+<label class="text-slate-600">Sort by:</label>
+<select id="sortBy" class="input">
+<option value="created">Date Added</option>
+<option value="due">Due Date</option>
+<option value="priority">Priority</option>
+</select>
+<select id="sortOrder" class="input">
+<option value="asc">Asc</option>
+<option value="desc">Desc</option>
+</select>
+</div>
+<button id="refreshBtn" class="btn">Refresh</button>
+</section>
+
+
+<!-- List -->
+<section id="list" class="mt-4 space-y-3" aria-live="polite"></section>
+</main>
+
+
+<!-- Toast -->
+<div id="toast" class="toast hidden" role="status" aria-live="assertive">
+<span id="toastMsg">Task deleted.</span>
+<button id="undoBtn" class="btn-link">Undo</button>
+</div>
+
+
+<script src="/static/script.js"></script>
+</body>
+</html>
