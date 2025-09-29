@@ -1,6 +1,6 @@
 PRAGMA foreign keys = ON;
 
-CREATE TABLES IF NOT EXISTS tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     priority TEXT CHECK(priority IN ('High', 'Mid', 'Low')) NOT NULL DEFAULT 'Low',
