@@ -2,25 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>To-Do List</title>
-  <!-- Use compiled Tailwind CSS -->
   <link rel="stylesheet" href="/static/styles.css">
 </head>
-<body class="bg-slate-100 p-6">
-  <div class="max-w-lg mx-auto card">
-    <h1 class="text-2xl font-bold mb-4">✅ My To-Do List</h1>
+<body>
+  <div class="container">
+    <h1>My To-Do List</h1>
 
-    <!-- Example input -->
-    <input type="text" class="input mb-3" placeholder="New Task">
+    <form id="taskForm">
+      <input type="text" id="title" placeholder="Task title" required>
+      <input type="text" id="due_date" placeholder="Due Date (e.g. 2025-08-15)">
+      <input type="text" id="due_time" placeholder="Due Time (e.g. 8:30)">
+      <button type="submit">Add Task</button>
+    </form>
 
-    <!-- Example buttons -->
-    <div class="row">
-      <button class="btn-primary">Add Task</button>
-      <button class="btn-danger">Delete All</button>
-    </div>
-
-    <!-- Example badge -->
-    <p class="mt-4">Priority: <span class="badge badge-high">High</span></p>
+    <ul id="list"></ul>
   </div>
 
   <script src="/static/script.js"></script>
