@@ -1,6 +1,11 @@
 const listEl = document.getElementById("list");
 const form = document.getElementById("taskForm");
 
+let lastDeleted = null;
+const toast = document.getElementById("toast");
+const toastMsg = document.getElementById("toast-msg");
+const undoBtn = document.getElementById("undo-btn");
+
 // --- Load tasks ---
 async function load() {
   const res = await fetch("/api/tasks");
@@ -69,13 +74,52 @@ function editTask(id, title, due_date, due_time) {
   }).then(load);
 }
 
-// --- Delete ---
+// --- Delete (with Toast + Undo) ---
 async function deleteTask(id) {
   if (confirm("Delete this task?")) {
+    // get task before deleting
+    const res = await fetch("/api/tasks");
+    const tasks = await res.json();
+    const task = tasks.find(t => t.id === id);
+
     await fetch(`/api/tasks/${id}`, { method: "DELETE" });
     load();
+
+    showToast("Task deleted.", task);
   }
 }
+
+// --- Show Toast ---
+function showToast(message, task) {
+  toastMsg.textContent = message;
+  toast.classList.remove("hidden");
+
+  lastDeleted = task; // save last deleted
+
+  // Auto-hide after 5s
+  setTimeout(() => {
+    toast.classList.add("hidden");
+    lastDeleted = null;
+  }, 5000);
+}
+
+// --- Undo ---
+undoBtn.addEventListener("click", async () => {
+  if (lastDeleted) {
+    await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: lastDeleted.title,
+        due_date: lastDeleted.due_date,
+        due_time: lastDeleted.due_time
+      }),
+    });
+    load();
+    lastDeleted = null;
+    toast.classList.add("hidden");
+  }
+});
 
 // Initial load
 load();

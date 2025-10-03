@@ -45,3 +45,28 @@ li {
 button {
   margin-left: 5px;
 }
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #333;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.95;
+}
+
+.toast button {
+  background: transparent;
+  border: none;
+  color: #4ade80; /* green */
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
