@@ -14,9 +14,16 @@ async function load() {
 
   tasks.forEach(task => {
     const li = document.createElement("li");
+
+    let color = "gray";
+    if (task.priority === "High") color = "red";
+    else if (task.priority === "Mid") color = "orange";
+    else if (task.priority === "Low") color = "green";
+
     li.innerHTML = `
       <span class="${task.completed ? 'done' : ''}">
         ${task.title} (Due: ${task.due_date || '—'} ${task.due_time || ''})
+        <span class="priority ${task.priority}">${task.priority}</span>
       </span>
       <button onclick="toggleDone(${task.id}, ${task.completed})">
         ${task.completed ? "Undo" : "Done"}
@@ -34,18 +41,20 @@ form.addEventListener("submit", async (e) => {
   const title = document.getElementById("title").value.trim();
   const due_date = document.getElementById("due_date").value.trim();
   const due_time = document.getElementById("due_time").value.trim();
+  const priority = document.getElementById("priority").value;
 
   if (!title) return alert("Task title required");
 
   await fetch("/api/tasks", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, due_date, due_time }),
+    body: JSON.stringify({ title, due_date, due_time, priority }),
   });
 
   form.reset();
   load();
 });
+
 
 //Toggle Done
 async function toggleDone(id, currentStatus) {

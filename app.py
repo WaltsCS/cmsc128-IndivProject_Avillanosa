@@ -46,8 +46,8 @@ def add_task():
 
     db = get_db()
     db.execute(
-        "INSERT INTO tasks (title, due_date, due_time, completed) VALUES (?, ?, ?, 0)",
-        (data["title"], data.get("due_date"), data.get("due_time"))
+        "INSERT INTO tasks (title, due_date, due_time, completed, priority) VALUES (?, ?, ?, 0, ?)",
+        (data["title"], data.get("due_date"), data.get("due_time"), data.get("priority", "Low"))
     )
     db.commit()
     return jsonify({"status": "ok"}), 201
@@ -62,8 +62,8 @@ def update_task(task_id):
         db.execute("UPDATE tasks SET completed=? WHERE id=?", (data["completed"], task_id))
     elif "title" in data:  #editing title/dates
         db.execute(
-            "UPDATE tasks SET title=?, due_date=?, due_time=? WHERE id=?",
-            (data["title"], data.get("due_date"), data.get("due_time"), task_id)
+            "UPDATE tasks SET title=?, due_date=?, due_time=?, priority=? WHERE id=?",
+            (data["title"], data.get("due_date"), data.get("due_time"), data.get("priority", "Low"), task_id)
         )
 
     db.commit()

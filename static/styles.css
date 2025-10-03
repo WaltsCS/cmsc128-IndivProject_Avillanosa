@@ -78,3 +78,13 @@ button {
 .hidden {
   display: none;
 }
+
+.priority {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8em;
+}
+
+.priority.High { background: #ef4444; color: white; } /*red*/
+.priority.Mid  { background: #f59e0b; color: black; } /*orange*/
+.priority.Low  { background: #22c55e; color: white; } /*green*/
