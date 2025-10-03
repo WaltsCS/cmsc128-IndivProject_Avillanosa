@@ -7,7 +7,7 @@ SCHEMA_PATH = os.path.join(APP_DIR, 'schema.sql')
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
-# --- DB Helpers ---
+#DB Helpers
 def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DB_PATH)
@@ -30,7 +30,7 @@ def init_db():
 with app.app_context():
     init_db()
 
-# --- API Routes ---
+#API Routes
 @app.get("/api/tasks")
 def get_tasks():
     db = get_db()
@@ -40,7 +40,7 @@ def get_tasks():
 @app.post("/api/tasks")
 def add_task():
     data = request.json
-    print("DEBUG: Received data ->", data)  # 👈 this will print in terminal
+    print("DEBUG: Received data ->", data)  #this will print in terminal
     if not data or "title" not in data:
         return jsonify({"error": "Invalid input"}), 400
 
@@ -57,10 +57,10 @@ def update_task(task_id):
     data = request.json
     db = get_db()
 
-    # only update completed if provided
+    #only update completed if provided
     if "completed" in data:
         db.execute("UPDATE tasks SET completed=? WHERE id=?", (data["completed"], task_id))
-    elif "title" in data:  # editing title/dates
+    elif "title" in data:  #editing title/dates
         db.execute(
             "UPDATE tasks SET title=?, due_date=?, due_time=? WHERE id=?",
             (data["title"], data.get("due_date"), data.get("due_time"), task_id)
@@ -76,7 +76,7 @@ def delete_task(task_id):
     db.commit()
     return jsonify({"deleted_id": task_id})
 
-# --- Serve frontend ---
+#Serve frontend
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")

@@ -6,7 +6,7 @@ const toast = document.getElementById("toast");
 const toastMsg = document.getElementById("toast-msg");
 const undoBtn = document.getElementById("undo-btn");
 
-// --- Load tasks ---
+//Load tasks
 async function load() {
   const res = await fetch("/api/tasks");
   const tasks = await res.json();
@@ -28,7 +28,7 @@ async function load() {
   });
 }
 
-// --- Add ---
+//Add
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const title = document.getElementById("title").value.trim();
@@ -47,19 +47,19 @@ form.addEventListener("submit", async (e) => {
   load();
 });
 
-// --- Toggle Done ---
+//Toggle Done
 async function toggleDone(id, currentStatus) {
-  const newStatus = currentStatus ? 0 : 1; // flip status
+  const newStatus = currentStatus ? 0 : 1; //flip status
   await fetch(`/api/tasks/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ completed: newStatus })
   });
-  load(); // reload tasks
+  load(); //reload tasks
 }
 
 
-// --- Edit ---
+//Edit
 function editTask(id, title, due_date, due_time) {
   const newTitle = prompt("Edit title:", title);
   if (newTitle === null) return;
@@ -74,7 +74,7 @@ function editTask(id, title, due_date, due_time) {
   }).then(load);
 }
 
-// --- Delete (with Toast + Undo) ---
+//Delete(with Toast + Undo)
 async function deleteTask(id) {
   if (confirm("Delete this task?")) {
     // get task before deleting
@@ -89,21 +89,23 @@ async function deleteTask(id) {
   }
 }
 
-// --- Show Toast ---
+//Show Toast
 function showToast(message, task) {
   toastMsg.textContent = message;
   toast.classList.remove("hidden");
+  toast.classList.add("show");
 
-  lastDeleted = task; // save last deleted
+  lastDeleted = task; //save last deleted
 
-  // Auto-hide after 5s
+  //Auto-hide after 5s
   setTimeout(() => {
-    toast.classList.add("hidden");
+    toast.classList.remove("show");
+    setTimeout(() => toast.classList.add("hidden"), 300); //wait for fade-out
     lastDeleted = null;
   }, 5000);
 }
 
-// --- Undo ---
+//Undo
 undoBtn.addEventListener("click", async () => {
   if (lastDeleted) {
     await fetch("/api/tasks", {
@@ -121,5 +123,5 @@ undoBtn.addEventListener("click", async () => {
   }
 });
 
-// Initial load
+//Init load
 load();
