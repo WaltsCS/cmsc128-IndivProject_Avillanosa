@@ -81,5 +81,11 @@ def delete_task(task_id):
 def index():
     return send_from_directory("static", "index.html")
 
+#different route from to-do list, for accessing accounts
+@app.route("/accounts")
+def accounts():
+    return send_from_directory("", "accounts.html")
+
+
 if __name__ == "__main__":
     app.run(debug=True)
