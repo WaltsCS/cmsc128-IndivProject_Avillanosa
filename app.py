@@ -2,38 +2,66 @@ from flask import Flask, g, jsonify, request, send_from_directory
 import sqlite3, os
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(APP_DIR, 'tasks.db')
-SCHEMA_PATH = os.path.join(APP_DIR, 'schema.sql')
+#files for to-do tasks
+TASKS_DB_PATH = os.path.join(APP_DIR, 'tasks.db')
+TASKS_SCHEMA_PATH = os.path.join(APP_DIR, 'schema_tasks.sql')
+#files for user accounts
+USERS_DB_PATH = os.path.join(APP_DIR, 'users.db')
+USERS_SCHEMA_PATH = os.path.join(APP_DIR, 'schema_users.sql')
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
-#DB Helpers
-def get_db():
-    if 'db' not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-    return g.db
-
-@app.teardown_appcontext
-def close_db(exception):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
-
 def init_db():
-    if not os.path.exists(DB_PATH):
-        db = get_db()
-        with open(SCHEMA_PATH, "r") as f:
+    #DB for to-do tasks
+    if not os.path.exists(TASKS_DB_PATH):
+        db = sqlite3.connect(TASKS_DB_PATH)
+        with open(TASKS_SCHEMA_PATH, "r") as f:
             db.executescript(f.read())
         db.commit()
+        db.close()
+        print("Created tasks.db")
 
+    #DB for user accounts
+    if not os.path.exists(USERS_DB_PATH):
+        db = sqlite3.connect(USERS_DB_PATH)
+        with open(USERS_SCHEMA_PATH, "r") as f:
+            db.executescript(f.read())
+        db.commit()
+        db.close()
+        print("Created users.db")
+
+#DB init
 with app.app_context():
     init_db()
 
-#API Routes
+#DB helpers for to-do tasks
+def get_tasks_db():
+    if 'tasks_db' not in g:
+        g.tasks_db = sqlite3.connect(TASKS_DB_PATH)
+        g.tasks_db.row_factory = sqlite3.Row
+    return g.tasks_db
+
+#DB helper for user accounts
+def get_users_db():
+    if 'users_db' not in g:
+        g.users_db = sqlite3.connect(USERS_DB_PATH)
+        g.users_db.row_factory = sqlite3.Row
+    return g.users_db
+
+@app.teardown_appcontext
+def close_db(exception):
+    db_task = g.pop('tasks_db', None)
+    if db_task is not None:
+        db_task.close()
+    db_user = g.pop('users_db', None)
+    if db_user is not None:
+        db_user.close()
+
+
+#To-Do tasks API Routes
 @app.get("/api/tasks")
 def get_tasks():
-    db = get_db()
+    db = get_tasks_db()
     rows = db.execute("SELECT * FROM tasks ORDER BY id DESC").fetchall()
     return jsonify([dict(r) for r in rows])
 
@@ -44,7 +72,7 @@ def add_task():
     if not data or "title" not in data:
         return jsonify({"error": "Invalid input"}), 400
 
-    db = get_db()
+    db = get_tasks_db()
     db.execute(
         "INSERT INTO tasks (title, due_date, due_time, completed, priority) VALUES (?, ?, ?, 0, ?)",
         (data["title"], data.get("due_date"), data.get("due_time"), data.get("priority", "Low"))
@@ -55,7 +83,7 @@ def add_task():
 @app.put("/api/tasks/<int:task_id>")
 def update_task(task_id):
     data = request.json
-    db = get_db()
+    db = get_tasks_db()
 
     #only update completed if provided
     if "completed" in data:
@@ -71,10 +99,54 @@ def update_task(task_id):
 
 @app.delete("/api/tasks/<int:task_id>")
 def delete_task(task_id):
-    db = get_db()
+    db = get_tasks_db()
     db.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     db.commit()
     return jsonify({"deleted_id": task_id})
+
+#User Accounts API Routes
+@app.post("/api/signup")
+def signup():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    name = data.get("name")
+
+    if not username or not password or not name:
+        return jsonify({"error": "Please fill out all fields"}), 400
+
+    db = get_users_db()
+
+    #Check if username exists
+    existing = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    if existing:
+        return jsonify({"error": "This username already exists"}), 400
+
+    #Insert new user
+    db.execute("INSERT INTO users (username, password, name) VALUES (?, ?, ?)", (username, password, name))
+    db.commit()
+
+    return jsonify({"status": "ok"}), 201
+
+
+@app.post("/api/login")
+def login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+
+    if not username or not password:
+        return jsonify({"error": "Username or Password is missing"}), 400
+
+    db = get_users_db()
+    user = db.execute(
+        "SELECT * FROM users WHERE username=? AND password=?", (username, password)
+    ).fetchone()
+
+    if not user:
+        return jsonify({"error": "Invalid account credentials"}), 401
+
+    return jsonify({"user": dict(user)}), 200
 
 #Serve frontend of To-do list
 @app.route("/")
