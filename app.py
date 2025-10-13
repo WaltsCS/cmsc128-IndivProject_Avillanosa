@@ -76,7 +76,7 @@ def delete_task(task_id):
     db.commit()
     return jsonify({"deleted_id": task_id})
 
-#Serve frontend
+#Serve frontend of To-do list
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
