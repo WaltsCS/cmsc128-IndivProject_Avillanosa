@@ -1,4 +1,4 @@
-//Elements
+//DOM Elements
 const signupSection = document.getElementById("signup-section");
 const loginSection = document.getElementById("login-section");
 const profileSection = document.getElementById("profile-section");
@@ -30,11 +30,11 @@ function showToast(message, duration = 4000) {
 
   setTimeout(() => {
     toast.classList.remove("show");
-    setTimeout(() => toast.classList.add("hidden"), 300); // wait for fade-out
+    setTimeout(() => toast.classList.add("hidden"), 300); //wait for fade-out
   }, duration);
 }
 
-//switch between forms
+//switch between forms for visibility
 document.getElementById("show-login").addEventListener("click", () => {
     signupSection.classList.add("hidden");
     loginSection.classList.remove("hidden");
@@ -80,7 +80,7 @@ signupForm.addEventListener("submit", async (e) => {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({username, password, name}),
-    });
+    });   //send JSON data to backend
 
     const data = await res.json();
 
@@ -92,7 +92,7 @@ signupForm.addEventListener("submit", async (e) => {
     }
 
     //Success
-    showToast("Account created successfully! You can now log in.");
+    showToast("✅ Account created successfully! You can now log in.");
 
     signupSection.classList.add("hidden");
     loginSection.classList.remove("hidden");
@@ -117,7 +117,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
-  });
+  });     //check creds
 
   const data = await res.json();
 
@@ -131,7 +131,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     return;
   }
   //Success
-  localStorage.setItem("user", JSON.stringify(data.user));
+  localStorage.setItem("user", JSON.stringify(data.user));  //save info for persistence
   showProfile(data.user);
 });
 
@@ -145,7 +145,7 @@ function showProfile(user) {
   profileName.textContent = user.name;
   profileUsername.textContent = user.username;
 
-  showToast(`👋 Welcome back, ${user.name}!`);
+  showToast(`👋 Welcome back, ${user.name}!`);  //displays message for user
 }
 
 //Update Profile
@@ -221,14 +221,14 @@ recoveryForm.addEventListener("submit", async (e) => {
 
 //Logout
 logoutBtn.addEventListener("click", () => {
-  localStorage.removeItem("user");
+  localStorage.removeItem("user");    //clear session data, back to login
   profileSection.classList.add("hidden");
   loginSection.classList.remove("hidden");
 });
 
 //Data persists on refresh
 window.addEventListener("load", () => {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user"));  //auto-restore state saved in JSON
   if (user) {
     showProfile(user);
   }

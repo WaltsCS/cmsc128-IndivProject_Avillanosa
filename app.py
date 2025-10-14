@@ -1,5 +1,5 @@
-from flask import Flask, g, jsonify, request, send_from_directory
-import sqlite3, os
+from flask import Flask, g, jsonify, request, send_from_directory       #routing & API routes
+import sqlite3, os                                                      #comms to db, handle file paths
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 #files for to-do tasks
@@ -11,7 +11,7 @@ USERS_SCHEMA_PATH = os.path.join(APP_DIR, 'schema_users.sql')
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
-def init_db():
+def init_db():          #read table, or create one
     #DB for to-do tasks
     if not os.path.exists(TASKS_DB_PATH):
         db = sqlite3.connect(TASKS_DB_PATH)
@@ -41,7 +41,7 @@ def get_tasks_db():
         g.tasks_db.row_factory = sqlite3.Row
     return g.tasks_db
 
-#DB helper for user accounts
+#DB helper for user accounts (g obj = per req db conn)
 def get_users_db():
     if 'users_db' not in g:
         g.users_db = sqlite3.connect(USERS_DB_PATH)
@@ -104,8 +104,8 @@ def delete_task(task_id):
     db.commit()
     return jsonify({"deleted_id": task_id})
 
-#User Accounts API Routes
-@app.post("/api/signup")
+#User Accounts API Routes   
+@app.post("/api/signup")    #(create new user)
 def signup():
     data = request.json
     username = data.get("username")
@@ -129,7 +129,7 @@ def signup():
     return jsonify({"status": "ok"}), 201
 
 
-@app.post("/api/login")
+@app.post("/api/login")     #auth user
 def login():
     data = request.json
     username = data.get("username")
