@@ -53,10 +53,10 @@ signupForm.addEventListener("submit", async (e) => {
 
 
 //Login
-loginForm.addEventListener("submit", async (e) => {
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const username = document.getElementById("li_username").value.trim();
-  const password = document.getElementById("li_password").value.trim();
+  const username = document.getElementById("loginUsername").value.trim();
+  const password = document.getElementById("loginPassword").value.trim();
 
   const res = await fetch("/api/login", {
     method: "POST",
@@ -66,13 +66,15 @@ loginForm.addEventListener("submit", async (e) => {
 
   const data = await res.json();
 
-  if (res.ok) {
-    //Save user in localStorage
-    localStorage.setItem("user", JSON.stringify(data.user));
-    showProfile(data.user);
-  } else {
-    alert("Login failed: " + data.error);
+  if (!res.ok) {
+    errorBox.textContent = data.error || "Invalid username or password.";
+    errorBox.classList.remove("hidden");
+    setTimeout(() => errorBox.classList.add("hidden"), 4000); //auto-hides after 4s
+    return;
   }
+
+  localStorage.setItem("user", JSON.stringify(data.user));
+  renderProfile();
 });
 
 

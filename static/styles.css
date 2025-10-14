@@ -88,3 +88,24 @@ button {
 .priority.High { background: #ef4444; color: white; } /*red*/
 .priority.Mid  { background: #f59e0b; color: black; } /*orange*/
 .priority.Low  { background: #22c55e; color: white; } /*green*/
+
+.error-box {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  padding: 10px 15px;
+  border-radius: 6px;
+  margin-top: 10px;
+  font-size: 0.9em;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.error-box {
+  animation: shake 0.3s ease;
+}
