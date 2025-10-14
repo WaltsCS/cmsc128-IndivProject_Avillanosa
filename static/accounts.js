@@ -2,19 +2,25 @@
 const signupSection = document.getElementById("signup-section");
 const loginSection = document.getElementById("login-section");
 const profileSection = document.getElementById("profile-section");
+const recoverySection = document.getElementById("recovery-section");
 
 const signupForm = document.getElementById("signupForm");
 const loginForm = document.getElementById("loginForm");
 const logoutBtn = document.getElementById("logoutBtn");
+const recoveryForm = document.getElementById("recoveryForm");
 
 const profileName = document.getElementById("profile-name");
 const profileUsername = document.getElementById("profile-username");
 
 const signupError = document.getElementById("signup-error");
 const loginError = document.getElementById("login-error");
+const recoveryError = document.getElementById("recovery-error");
 
 const toast = document.getElementById("toast");
 const toastMsg = document.getElementById("toast-msg");
+const updateError = document.getElementById("update-error");
+
+
 
 //toast func
 function showToast(message, duration = 4000) {
@@ -39,6 +45,18 @@ document.getElementById("show-signup").addEventListener("click", () => {
     loginSection.classList.add("hidden");
     signupSection.classList.remove("hidden");
     loginError.classList.add("hidden");
+});
+
+document.getElementById("forgot-password-link").addEventListener("click", () => {
+  loginSection.classList.add("hidden");
+  recoverySection.classList.remove("hidden");
+  loginError.classList.add("hidden");
+});
+
+document.getElementById("back-to-login").addEventListener("click", () => {
+  recoverySection.classList.add("hidden");
+  loginSection.classList.remove("hidden");
+  recoveryError.classList.add("hidden");
 });
 
 
@@ -126,7 +144,80 @@ function showProfile(user) {
 
   profileName.textContent = user.name;
   profileUsername.textContent = user.username;
+
+  showToast(`👋 Welcome back, ${user.name}!`);
 }
+
+//Update Profile
+updateForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const user = JSON.parse(localStorage.getItem("user"));
+  const name = document.getElementById("update_name").value.trim();
+  const username = document.getElementById("update_username").value.trim();
+  const password = document.getElementById("update_password").value.trim();
+
+  if (!name && !username && !password) {
+    updateError.textContent = "Enter at least one field to update.";
+    updateError.classList.remove("hidden");
+    return;
+  }
+
+  const res = await fetch(`/api/update_user/${user.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, username, password }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    updateError.textContent = data.error || "Update failed.";
+    updateError.classList.remove("hidden");
+    setTimeout(() => updateError.classList.add("hidden"), 4000);
+    return;
+  }
+
+  localStorage.setItem("user", JSON.stringify(data.user));
+  showProfile(data.user);
+  showToast("✅ Profile updated successfully!");
+  updateForm.reset();
+});
+
+//Recover Password
+recoveryForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const username = document.getElementById("recovery_username").value.trim();
+  const new_password = document.getElementById("new_password").value.trim();
+
+  if (!username || !new_password) {
+    recoveryError.textContent = "Please fill out all fields.";
+    recoveryError.classList.remove("hidden");
+    return;
+  }
+
+  const res = await fetch("/api/recover", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, new_password }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    recoveryError.textContent = data.error || "Password reset failed.";
+    recoveryError.classList.remove("hidden");
+    setTimeout(() => recoveryError.classList.add("hidden"), 4000);
+    return;
+  }
+
+  showToast("✅ Password updated successfully! You can now log in.");
+  recoverySection.classList.add("hidden");
+  loginSection.classList.remove("hidden");
+  recoveryForm.reset();
+});
+
 
 //Logout
 logoutBtn.addEventListener("click", () => {

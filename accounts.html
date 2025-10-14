@@ -29,12 +29,34 @@
           <button type="submit">Login</button>
         </form>
         <div id="login-error" class="error-box hidden"></div>
+        <p><a href="#" id="forgot-password-link">Forgot Password?</a></p>
         <p>Don't have an account? <a href="#" id="show-signup">Sign Up here</a></p>
+      </div>
+
+      <div id="recovery-section" class="hidden">
+        <h2>Reset Password</h2>
+        <form id="recoveryForm">
+          <input type="text" id="recovery_username" placeholder="Enter Username or Email" />
+          <input type="password" id="new_password" placeholder="Enter New Password" />
+          <button type="submit">Reset Password</button>
+        </form>
+        <div id="recovery-error" class="error-box hidden"></div>
+        <p><a href="#" id="back-to-login">Back to Login</a></p>
       </div>
 
       <div id="profile-section" class="hidden">
         <h2>Welcome, <span id="profile-name"></span>!</h2>
         <p>Username: <span id="profile-username"></span></p>
+
+        <h3>Update Info</h3>
+        <form id="updateForm">
+          <input type="text" id="update_name" placeholder="New Name" />
+          <input type="text" id="update_username" placeholder="New Username" />
+          <input type="password" id="update_password" placeholder="New Password" />
+          <button type="submit">Save Changes</button>
+        </form>
+        <div id="update-error" class="error-box hidden"></div>
+
         <button id="logoutBtn">Logout</button>
       </div>
     </div>

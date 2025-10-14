@@ -117,12 +117,12 @@ def signup():
 
     db = get_users_db()
 
-    #Check if username exists
+    #check if username exists
     existing = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     if existing:
         return jsonify({"error": "This username already exists"}), 400
 
-    #Insert new user
+    #insert new user
     db.execute("INSERT INTO users (username, password, name) VALUES (?, ?, ?)", (username, password, name))
     db.commit()
 
@@ -147,6 +147,56 @@ def login():
         return jsonify({"error": "Invalid username or password."}), 401
 
     return jsonify({"user": dict(user)}), 200
+
+#Update user profile
+@app.put("/api/update_user/<int:user_id>")
+def update_user(user_id):
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    name = data.get("name")
+
+    db = get_users_db()
+    user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    #check username for dupes
+    if username and username != user["username"]:
+        existing = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        if existing:
+            return jsonify({"error": "Username already taken"}), 400
+
+    #dynamic update query
+    db.execute("""
+        UPDATE users
+        SET username = COALESCE(?, username),
+            password = COALESCE(?, password),
+            name = COALESCE(?, name)
+        WHERE id = ?
+    """, (username, password, name, user_id))
+    db.commit()
+
+    updated_user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    return jsonify({"user": dict(updated_user)}), 200
+
+#Password recovery
+@app.post("/api/recover")
+def recover_password():
+    data = request.json
+    username = data.get("username")
+    new_password = data.get("new_password")
+
+    db = get_users_db()
+    user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    if not user:
+        return jsonify({"error": "No account found for this username"}), 404
+
+    db.execute("UPDATE users SET password=? WHERE username=?", (new_password, username))
+    db.commit()
+
+    return jsonify({"status": "Password updated successfully"}), 200
+
 
 #Serve frontend of To-do list
 @app.route("/")
