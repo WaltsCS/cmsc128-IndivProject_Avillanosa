@@ -144,7 +144,7 @@ def login():
     ).fetchone()
 
     if not user:
-        return jsonify({"error": "Invalid account credentials"}), 401
+        return jsonify({"error": "Invalid username or password."}), 401
 
     return jsonify({"user": dict(user)}), 200
 
