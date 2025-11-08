@@ -6,6 +6,23 @@ const toast = document.getElementById("toast");
 const toastMsg = document.getElementById("toast-msg");
 const undoBtn = document.getElementById("undo-btn");
 
+//Auth gate on To-Do page
+(async () => {
+  try {
+    const res = await fetch("/api/me");
+    const data = await res.json();
+    if (!data.user) {
+      // not logged in → go back to Accounts page
+      window.location.href = "/accounts";
+    } else {
+      console.log(`✅ Logged in as ${data.user.username}`);
+    }
+  } catch (err) {
+    console.error("Auth check failed:", err);
+    window.location.href = "/accounts";
+  }
+})();
+
 //Load tasks
 async function load() {
   const res = await fetch("/api/tasks");

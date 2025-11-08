@@ -130,9 +130,8 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     setTimeout(() => loginError.classList.add("hidden"), 4000);
     return;
   }
-  //Success
-  localStorage.setItem("user", JSON.stringify(data.user));  //save info for persistence
-  showProfile(data.user);
+  //Success (no localStorage needed for auth now)
+  window.location.href = "/todo";
 });
 
 
