@@ -1,4 +1,4 @@
-from flask import Flask, g, jsonify, request, send_from_directory       #routing & API routes
+from flask import Flask, g, jsonify, request, send_from_directory, session, redirect       #routing & API routes
 import sqlite3, os                                                      #comms to db, handle file paths
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -10,6 +10,7 @@ USERS_DB_PATH = os.path.join(APP_DIR, 'users.db')
 USERS_SCHEMA_PATH = os.path.join(APP_DIR, 'schema_users.sql')
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+app.secret_key = "change-me-in-prod"    #needed for Flask session cookies
 
 def init_db():          #read table, or create one
     #DB for to-do tasks
@@ -57,41 +58,71 @@ def close_db(exception):
     if db_user is not None:
         db_user.close()
 
+#Auth helpers
+def current_user_id():
+    return session.get("user_id")
 
-#To-Do tasks API Routes
+def require_login():
+    if not current_user_id():
+        return jsonify({"error": "Not authenticated"}), 401
+
+
+#To-Do tasks API Routes (per user)
 @app.get("/api/tasks")
 def get_tasks():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+    
     db = get_tasks_db()
-    rows = db.execute("SELECT * FROM tasks ORDER BY id DESC").fetchall()
+    rows = db.execute(
+        "SELECT * FROM tasks WHERE user_id=? ORDER BY id DESC", (uid,)
+    ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 @app.post("/api/tasks")
 def add_task():
-    data = request.json
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
     print("DEBUG: Received data ->", data)  #this will print in terminal
-    if not data or "title" not in data:
+    title = data.get("title", "").strip()
+    if not title:
         return jsonify({"error": "Invalid input"}), 400
 
     db = get_tasks_db()
     db.execute(
-        "INSERT INTO tasks (title, due_date, due_time, completed, priority) VALUES (?, ?, ?, 0, ?)",
-        (data["title"], data.get("due_date"), data.get("due_time"), data.get("priority", "Low"))
+        "INSERT INTO tasks (user_id, title, due_date, due_time, completed, priority)"
+        "VALUES (?, ?, ?, ?, 0, ?)",
+        (uid, title, data.get("due_date"), data.get("due_time"), data.get("priority", "Low"))
     )
     db.commit()
     return jsonify({"status": "ok"}), 201
 
 @app.put("/api/tasks/<int:task_id>")
 def update_task(task_id):
-    data = request.json
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
     db = get_tasks_db()
+
+    #only allow updating tasks owned by user
+    exists = db.execute("SELECT 1 FROM tasks WHERE id=? AND user_id=?", (task_id, uid)).fetchone()
+    if not exists:
+        return jsonify({"error": "Not found"}), 404
 
     #only update completed if provided
     if "completed" in data:
-        db.execute("UPDATE tasks SET completed=? WHERE id=?", (data["completed"], task_id))
+        db.execute("UPDATE tasks SET completed=? WHERE id=? AND user_id=?", 
+                   (data["completed"], task_id, uid))
     elif "title" in data:  #editing title/dates
         db.execute(
-            "UPDATE tasks SET title=?, due_date=?, due_time=?, priority=? WHERE id=?",
-            (data["title"], data.get("due_date"), data.get("due_time"), data.get("priority", "Low"), task_id)
+            "UPDATE tasks SET title=?, due_date=?, due_time=?, priority=? WHERE id=? AND user_id=?",
+            (data["title"], data.get("due_date"), data.get("due_time"), data.get("priority", "Low"), task_id, uid)
         )
 
     db.commit()
@@ -99,18 +130,22 @@ def update_task(task_id):
 
 @app.delete("/api/tasks/<int:task_id>")
 def delete_task(task_id):
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
     db = get_tasks_db()
-    db.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+    db.execute("DELETE FROM tasks WHERE id=? AND user_id=?", (task_id, uid))
     db.commit()
     return jsonify({"deleted_id": task_id})
 
 #User Accounts API Routes   
 @app.post("/api/signup")    #(create new user)
 def signup():
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
-    name = data.get("name")
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    name = data.get("name", "").strip()
 
     if not username or not password or not name:
         return jsonify({"error": "Please fill out all fields"}), 400
@@ -129,11 +164,11 @@ def signup():
     return jsonify({"status": "ok"}), 201
 
 
-@app.post("/api/login")     #auth user
+@app.post("/api/login")     #LOGIN / auth user 
 def login():
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
 
     if not username or not password:
         return jsonify({"error": "Username or Password is missing"}), 400
@@ -145,8 +180,32 @@ def login():
 
     if not user:
         return jsonify({"error": "Invalid username or password."}), 401
+    
+    session["user_id"] = user["id"]          #persists login in session cookie
+    session["name"] = user["name"]
+    session["username"] = user["username"]
 
     return jsonify({"user": dict(user)}), 200
+
+@app.post("/api/logout")    #LOGOUT
+def logout():
+    session.clear()
+    return jsonify({"status": "ok"})
+
+
+@app.get("/api/me")     #Used by frontend to verify session on /todo
+def me():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"user": None}), 200
+    return jsonify({
+        "user": {
+            "id": uid,
+            "username": session.get("username"),
+            "name": session.get("name")
+        }
+    }), 200
+
 
 #Update user profile
 @app.put("/api/update_user/<int:user_id>")
@@ -197,16 +256,23 @@ def recover_password():
 
     return jsonify({"status": "Password updated successfully"}), 200
 
-
+#PAGES
 #Serve frontend of To-do list
-@app.route("/")
-def index():
-    return send_from_directory("static", "index.html")
+@app.route("/todo")
+def todo():
+    return send_from_directory("static", "index.html")  #To-Do UI (replaced index.html)
 
 #different route from to-do list, for accessing accounts
 @app.route("/accounts")
 def accounts():
     return send_from_directory("", "accounts.html")
+
+#optional: default route sends to accounts (or to /todo if already logged in)
+@app.route("/")
+def root():
+    if current_user_id():
+        return redirect("/todo")
+    return redirect("/accounts")
 
 
 if __name__ == "__main__":
