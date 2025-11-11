@@ -20,6 +20,29 @@ const toast = document.getElementById("toast");
 const toastMsg = document.getElementById("toast-msg");
 const updateError = document.getElementById("update-error");
 
+//auto-detects logged-in user when visiting '/accounts'
+(async () => {
+  try {
+    const res = await fetch("/api/me");
+    const data = await res.json();
+
+    if (window.location.hash === "#profile" && data.user) {
+      //user already logged in -> show profile section
+      signupSection.classList.add("hidden");
+      loginSection.classList.add("hidden");
+      profileSection.classList.remove("hidden");
+      profileName.textContent = data.user.name;
+      profileUsername.textContent = data.user.username;
+    } else {
+      //user not logged in -> show login section
+      signupSection.classList.add("hidden");
+      loginSection.classList.remove("hidden");
+    }
+  } catch (err) {
+    console.error("Failed to verify session:", err);
+  }
+})();
+
 
 
 //toast func

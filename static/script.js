@@ -23,6 +23,30 @@ const undoBtn = document.getElementById("undo-btn");
   }
 })();
 
+//Navbar: displays username & enables logout/profile
+(async () => {
+  const res = await fetch("/api/me");
+  const data = await res.json();
+
+  const greeting = document.getElementById("user-greeting");
+  const profileBtn = document.getElementById("profileBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  if (data.user) {
+    greeting.textContent = `👋 Hello, ${data.user.name}!`;
+  }
+
+  profileBtn.addEventListener("click", () => {
+    window.location.href = "/accounts#profile"; // go to Account/Profile page
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/accounts#login"; // back to login screen
+  });
+})();
+
+
 //Load tasks
 async function load() {
   const res = await fetch("/api/tasks");

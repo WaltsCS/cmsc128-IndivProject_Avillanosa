@@ -132,3 +132,17 @@ button {
 .toast.hidden {
   display: none;
 }
+
+.nav-btn {
+  background-color: #444;
+  color: #eee;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  margin-left: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.nav-btn:hover {
+  background-color: #666;
+}

@@ -10,6 +10,14 @@
   <div class="container">
     <h1>My To-Do List</h1>
 
+    <div id="nav-bar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <div id="user-greeting" style="font-size:1rem; color:#ccc;"></div>
+      <div>
+        <button id="profileBtn" class="nav-btn">Profile</button>
+        <button id="logoutBtn" class="nav-btn">Logout</button>
+      </div>
+    </div>
+
     <form id="taskForm">
       <input type="text" id="title" placeholder="Task title" required>
       <input type="text" id="due_date" placeholder="Due Date (e.g. 2025-08-15)">
