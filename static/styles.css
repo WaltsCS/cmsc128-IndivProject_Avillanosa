@@ -146,3 +146,17 @@ button {
 .nav-btn:hover {
   background-color: #666;
 }
+
+.profile-btn {
+  background-color: #444;
+  color: #eee;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  margin: 6px 4px 0 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.profile-btn:hover {
+  background-color: #666;
+}

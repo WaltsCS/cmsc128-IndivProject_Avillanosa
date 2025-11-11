@@ -248,6 +248,11 @@ logoutBtn.addEventListener("click", () => {
   loginSection.classList.remove("hidden");
 });
 
+//Back to To-Do List button
+document.getElementById("backToTodoBtn").addEventListener("click", () => {
+  window.location.href = "/todo";
+});
+
 //Data persists on refresh
 window.addEventListener("load", () => {
   const user = JSON.parse(localStorage.getItem("user"));  //auto-restore state saved in JSON
