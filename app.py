@@ -1,3 +1,4 @@
+from flask_bcrypt import Bcrypt
 from flask import Flask, g, jsonify, request, send_from_directory, session, redirect       #routing & API routes
 import sqlite3, os                                                      #comms to db, handle file paths
 
@@ -10,6 +11,7 @@ USERS_DB_PATH = os.path.join(APP_DIR, 'users.db')
 USERS_SCHEMA_PATH = os.path.join(APP_DIR, 'schema_users.sql')
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+bcrypt = Bcrypt(app)    #init Bcrypt PW encryption
 app.secret_key = "change-me-in-prod"    #needed for Flask session cookies
 
 def init_db():          #read table, or create one
@@ -157,8 +159,12 @@ def signup():
     if existing:
         return jsonify({"error": "This username already exists"}), 400
 
-    #insert new user
-    db.execute("INSERT INTO users (username, password, name) VALUES (?, ?, ?)", (username, password, name))
+    #insert new user and encrpyt password
+    hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+    db.execute(
+        "INSERT INTO users (username, password, name) VALUES (?, ?, ?)",
+        (username, hashed_pw, name)
+    )
     db.commit()
 
     return jsonify({"status": "ok"}), 201
@@ -173,13 +179,12 @@ def login():
     if not username or not password:
         return jsonify({"error": "Username or Password is missing"}), 400
 
-    db = get_users_db()
-    user = db.execute(
-        "SELECT * FROM users WHERE username=? AND password=?", (username, password)
-    ).fetchone()
-
-    if not user:
+    db = get_users_db()             #PW Encrypt in Login
+    user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    #compare PW w/ hashed PW in db
+    if not user or not bcrypt.check_password_hash(user["password"], password):
         return jsonify({"error": "Invalid username or password."}), 401
+
     
     session["user_id"] = user["id"]          #persists login in session cookie
     session["name"] = user["name"]
@@ -226,6 +231,9 @@ def update_user(user_id):
         if existing:
             return jsonify({"error": "Username already taken"}), 400
 
+    #hash PW only if user entered one
+    hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8') if password else None
+
     #dynamic update query
     db.execute("""
         UPDATE users
@@ -233,7 +241,7 @@ def update_user(user_id):
             password = COALESCE(?, password),
             name = COALESCE(?, name)
         WHERE id = ?
-    """, (username, password, name, user_id))
+    """, (username, hashed_pw, name, user_id))
     db.commit()
 
     updated_user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
@@ -251,7 +259,8 @@ def recover_password():
     if not user:
         return jsonify({"error": "No account found for this username"}), 404
 
-    db.execute("UPDATE users SET password=? WHERE username=?", (new_password, username))
+    hashed_pw = bcrypt.generate_password_hash(new_password).decode('utf-8')
+    db.execute("UPDATE users SET password=? WHERE username=?", (hashed_pw, username))
     db.commit()
 
     return jsonify({"status": "Password updated successfully"}), 200
