@@ -1,10 +1,17 @@
+/* DOM Elements */
 const listEl = document.getElementById("list");
 const form = document.getElementById("taskForm");
 
 let lastDeleted = null;
 const toast = document.getElementById("toast");
 const toastMsg = document.getElementById("toast-msg");
-const undoBtn = document.getElementById("undo-btn");
+const toastUndo = document.getElementById("toast-undo");
+
+// Modal elements
+const deleteModal = document.getElementById("deleteModal");
+const deleteConfirmBtn = document.getElementById("deleteConfirm");
+const deleteCancelBtn = document.getElementById("deleteCancel");
+let pendingDeleteID = null;
 
 //Auth gate on To-Do page
 (async () => {
@@ -12,10 +19,10 @@ const undoBtn = document.getElementById("undo-btn");
     const res = await fetch("/api/me");
     const data = await res.json();
     if (!data.user) {
-      // not logged in → go back to Accounts page
-      window.location.href = "/accounts";
+      window.location.href = "/accounts#login";
     } else {
-      console.log(`✅ Logged in as ${data.user.username}`);
+      document.getElementById("welcome-user").textContent =
+        `👋 Hello, ${data.user.name}!`;
     }
   } catch (err) {
     console.error("Auth check failed:", err);
@@ -23,28 +30,52 @@ const undoBtn = document.getElementById("undo-btn");
   }
 })();
 
-//Navbar: displays username & enables logout/profile
-(async () => {
-  const res = await fetch("/api/me");
-  const data = await res.json();
+/* Navbar Actions */
+document.getElementById("profileBtn").onclick = () =>
+  window.location.href = "/accounts#profile";
 
-  const greeting = document.getElementById("user-greeting");
-  const profileBtn = document.getElementById("profileBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
+document.getElementById("logoutBtn").onclick = async () => {
+  await fetch("/api/logout", { method: "POST" });
+  window.location.href = "/accounts#login";
+};
 
-  if (data.user) {
-    greeting.textContent = `👋 Hello, ${data.user.name}!`;
-  }
 
-  profileBtn.addEventListener("click", () => {
-    window.location.href = "/accounts#profile"; // go to Account/Profile page
-  });
 
-  logoutBtn.addEventListener("click", async () => {
-    await fetch("/api/logout", { method: "POST" });
-    window.location.href = "/accounts#login"; // back to login screen
-  });
-})();
+/* Flatpickr Init */
+flatpickr(".flatpickr-date", {
+  dateFormat: "Y-m-d",
+  allowInput: true
+});
+
+flatpickr(".flatpickr-time", {
+  enableTime: true,
+  noCalendar: true,
+  dateFormat: "H:i",
+  time_24hr: true,
+  allowInput: true
+});
+
+
+/* Toast system */
+function showToast(message, type = "info", undo = false) {
+  toastMsg.textContent = message;
+
+  toastMsg.className = "";  
+  if (type === "success") toastMsg.classList.add("toast-msg-success");
+  if (type === "error") toastMsg.classList.add("toast-msg-error");
+
+  toastUndo.classList.toggle("hidden", !undo);
+
+  toast.classList.remove("hidden");
+  setTimeout(() => toast.classList.add("show"), 50);
+
+  setTimeout(() => hideToast(), 4500);
+}
+
+function hideToast() {
+  toast.classList.remove("show");
+  setTimeout(() => toast.classList.add("hidden"), 350);
+}
 
 
 //Load tasks
@@ -56,27 +87,33 @@ async function load() {
   tasks.forEach(task => {
     const li = document.createElement("li");
 
-    let color = "gray";
-    if (task.priority === "High") color = "red";
-    else if (task.priority === "Mid") color = "orange";
-    else if (task.priority === "Low") color = "green";
-
     li.innerHTML = `
-      <span class="${task.completed ? 'done' : ''}">
-        ${task.title} (Due: ${task.due_date || '—'} ${task.due_time || ''})
+      <span class="${task.completed ? "done" : ""}">
+        ${(task.title)} 
+        (Due: ${task.due_date || "—"} ${task.due_time || ""})
         <span class="priority ${task.priority}">${task.priority}</span>
       </span>
+
       <button onclick="toggleDone(${task.id}, ${task.completed})">
         ${task.completed ? "Undo" : "Done"}
       </button>
-      <button onclick="editTask(${task.id}, '${task.title}', '${task.due_date || ''}', '${task.due_time || ''}')">Edit</button>
+
+      <button onclick="editTask(${task.id},
+        '${task.title}',
+        '${task.due_date}',
+        '${task.due_time}'
+      )">Edit</button>
+
       <button onclick="deleteTask(${task.id})">Delete</button>
     `;
+
     listEl.appendChild(li);
   });
 }
 
-//Add
+
+
+//Add Task
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const title = document.getElementById("title").value.trim();
@@ -84,7 +121,10 @@ form.addEventListener("submit", async (e) => {
   const due_time = document.getElementById("due_time").value.trim();
   const priority = document.getElementById("priority").value;
 
-  if (!title) return alert("Task title required");
+  if (!title) {
+    showToast("Task title required", "error");
+    return;
+  }
 
   await fetch("/api/tasks", {
     method: "POST",
@@ -92,24 +132,24 @@ form.addEventListener("submit", async (e) => {
     body: JSON.stringify({ title, due_date, due_time, priority }),
   });
 
+  showToast("Task added!", "success");
   form.reset();
-  load();
+  await load();
 });
 
 
 //Toggle Done
-async function toggleDone(id, currentStatus) {
-  const newStatus = currentStatus ? 0 : 1; //flip status
+async function toggleDone(id, done) {
   await fetch(`/api/tasks/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ completed: newStatus })
+    body: JSON.stringify({ completed: done ? 0 : 1 })
   });
-  load(); //reload tasks
+  await load(); //reload tasks
 }
 
 
-//Edit
+//Edit Task w/ confirmation toast
 function editTask(id, title, due_date, due_time) {
   const newTitle = prompt("Edit title:", title);
   if (newTitle === null) return;
@@ -120,58 +160,60 @@ function editTask(id, title, due_date, due_time) {
   fetch(`/api/tasks/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: newTitle, due_date: newDate, due_time: newTime, completed: 0 }),
-  }).then(load);
+    body: JSON.stringify({ 
+      title: newTitle, 
+      due_date: newDate, 
+      due_time: newTime, 
+      completed: 0 
+    })
+  }).then(() => {
+    showToast("Task updated!", "success");
+    load();
+  });
 }
 
 //Delete(with Toast + Undo)
 async function deleteTask(id) {
-  if (confirm("Delete this task?")) {
-    // get task before deleting
-    const res = await fetch("/api/tasks");
-    const tasks = await res.json();
-    const task = tasks.find(t => t.id === id);
-
-    await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-    load();
-
-    showToast("Task deleted.", task);
-  }
+  pendingDeleteID = id;
+  deleteModal.classList.add("show");
 }
 
-//Show Toast
-function showToast(message, task) {
-  toastMsg.textContent = message;
-  toast.classList.remove("hidden");
-  toast.classList.add("show");
+deleteCancelBtn.onclick = () => {
+  pendingDeleteID = null;
+  deleteModal.classList.remove("show");
+};
 
-  lastDeleted = task; //save last deleted
+deleteConfirmBtn.onclick = async () => {
+  if (!pendingDeleteID) return;
 
-  //Auto-hide after 5s
-  setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.classList.add("hidden"), 300); //wait for fade-out
-    lastDeleted = null;
-  }, 5000);
-}
+  const res = await fetch("/api/tasks");
+  const tasks = await res.json();
+  lastDeleted = tasks.find(t => t.id === pendingDeleteID);
 
-//Undo
-undoBtn.addEventListener("click", async () => {
-  if (lastDeleted) {
-    await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: lastDeleted.title,
-        due_date: lastDeleted.due_date,
-        due_time: lastDeleted.due_time
-      }),
-    });
-    load();
-    lastDeleted = null;
-    toast.classList.add("hidden");
-  }
-});
+  await fetch(`/api/tasks/${pendingDeleteID}`, { method: "DELETE" });
+  await load();
 
-//Init load
+  showToast("Task deleted.", "error", true);
+
+  deleteModal.classList.remove("show");
+  pendingDeleteID = null;
+};
+
+
+//Undo Delete
+toastUndo.onclick = async () => {
+  if (!lastDeleted) return;
+
+  await fetch("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(lastDeleted)
+  });
+
+  showToast("Delete undone!", "success");
+  lastDeleted = null;
+  await load();
+};
+
+//Init task list
 load();

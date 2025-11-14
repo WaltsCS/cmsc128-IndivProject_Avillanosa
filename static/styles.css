@@ -1,21 +1,20 @@
+/* ------------------ GLOBAL UI ------------------ */
 body {
+  background: #0f0f0f;
+  color: #eee;
   font-family: Arial, sans-serif;
-  background: #f4f4f4;
-  padding: 20px;
 }
 
-.container {
-  max-width: 600px;
-  margin: auto;
-  background: #fff;
-  padding: 20px;
-  border-radius: 8px;
+.container-box {
+  background: #1a1a1a;
+  padding: 30px;
+  border-radius: 12px;
+  margin-top: 40px;
+  width: 100%;
+  max-width: 850px;
 }
 
-.done {
-  text-decoration: line-through;
-  color: gray;
-}
+
 
 h1 {
   margin-bottom: 15px;
@@ -30,64 +29,43 @@ input, button {
   padding: 8px;
 }
 
+/* ------------------ TASK LIST ------------------ */
 ul {
   list-style: none;
   padding: 0;
 }
 
 li {
-  background: #eee;
-  margin: 5px 0;
-  padding: 10px;
-  border-radius: 4px;
+  background: #222;
+  color: #eee;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
 }
 
 button {
   margin-left: 5px;
 }
 
-.toast {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: #333;
-  color: #fff;
-  padding: 10px 15px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  opacity: 0.95;
-  transform: translateY(20px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.toast button {
-  background: none;
-  border: none;
-  color: #4ade80; /* green */
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.toast.show {
-  opacity: 1;
-  transform: translateY(0);
+.done {
+  text-decoration: line-through;
+  opacity: 0.5;
 }
 
 .hidden {
   display: none;
 }
 
+/* ------------------ PRIORITY BADGES ------------------ */
 .priority {
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.8em;
+  font-size: 0.75em;
 }
 
-.priority.High { background: #ef4444; color: white; } /*red*/
-.priority.Mid  { background: #f59e0b; color: black; } /*orange*/
-.priority.Low  { background: #22c55e; color: white; } /*green*/
+.priority.High { background: #e11d48; }
+.priority.Mid { background: #f59e0b; color: black; }
+.priority.Low { background: #22c55e; }
 
 .error-box {
   background: #7f1d1d; /*deep red*/
@@ -107,25 +85,26 @@ button {
   75% { transform: translateX(-3px); }
 }
 
+/* ------------------ TOAST ------------------ */
 .toast {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: #333;
-  color: #fff;
-  padding: 10px 15px;
-  border-radius: 6px;
+  bottom: 30px;
+  right: 30px;
+  background: #222;
+  color: white;
+  padding: 14px 20px;
+  border-radius: 10px;
+  min-width: 250px;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
   opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  font-weight: 500;
+  transform: translateY(40px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
 .toast.show {
-  opacity: 0.95;
+  opacity: 1;
   transform: translateY(0);
 }
 
@@ -133,30 +112,104 @@ button {
   display: none;
 }
 
-.nav-btn {
-  background-color: #444;
-  color: #eee;
+.toast-undo {
+  background: none;
   border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  margin-left: 4px;
+  color: #4ade80;
+  font-weight: bold;
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-.nav-btn:hover {
-  background-color: #666;
 }
 
-.profile-btn {
-  background-color: #444;
+.toast-msg-error {
+  color: #f87171;
+}
+
+.toast-msg-success {
+  color: #4ade80;
+}
+
+/* ------------------ NAV BUTTONS ------------------ */
+.nav-btn {
+  background: #333;
   color: #eee;
   border: none;
-  padding: 8px 14px;
+  padding: 6px 14px;
   border-radius: 6px;
-  margin: 6px 4px 0 0;
   cursor: pointer;
-  transition: background-color 0.2s;
+  margin-right: 6px;
+  transition: 0.2s;
 }
-.profile-btn:hover {
-  background-color: #666;
+
+.nav-btn:hover { background: #555; }
+
+
+
+/* ---------- MODAL ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.modal-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-box {
+  background: #1f1f1f;
+  padding: 25px;
+  width: 320px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(0,0,0,0.4);
+}
+
+.modal-title {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.modal-message {
+  color: #ccc;
+  margin-bottom: 20px;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.modal-btn.cancel {
+  background: #444;
+  color: #eee;
+}
+
+.modal-btn.cancel:hover {
+  background: #666;
+}
+
+.modal-btn.delete {
+  background: #e11d48;
+  color: white;
+}
+
+.modal-btn.delete:hover {
+  background: #be123c;
 }
