@@ -1,8 +1,66 @@
-/* ------------------ GLOBAL UI ------------------ */
+/* GLOBAL UI */
 body {
   background: #0f0f0f;
   color: #eee;
   font-family: Arial, sans-serif;
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 230px;
+  background: #111;
+  border-right: 1px solid #222;
+}
+
+.sidebar-title {
+  color: #f1f5f9;
+  margin-bottom: 10px;
+}
+
+.sidebar-section-header {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 5px;
+}
+
+.sidebar-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #e5e7eb;
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.sidebar-item:hover {
+  background: #1e293b;
+}
+
+.sidebar-item-active {
+  background: #2563eb;
+  color: white;
+}
+
+.sidebar-item-new {
+  margin-top: 6px;
+  color: #a5b4fc;
+}
+
+/* MAIN PANEL */
+.main-panel {
+  background: #0f172a;
 }
 
 .container-box {
@@ -14,33 +72,54 @@ body {
   max-width: 850px;
 }
 
-
-
 h1 {
-  margin-bottom: 15px;
+  margin-bottom: 5px;
 }
 
+/* Collab meta */
+.collab-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #111827;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 8px;
+}
+
+/* FORM */
 form {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
-input, button {
+input,
+button,
+select {
   margin: 5px 0;
   padding: 8px;
 }
 
-/* ------------------ TASK LIST ------------------ */
+/* TASK LIST */
 ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
 li {
-  background: #222;
-  color: #eee;
-  padding: 12px;
+  background: #111827;
+  color: #e5e7eb;
+  padding: 10px 12px;
   border-radius: 8px;
   margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+li span {
+  flex: 1;
 }
 
 button {
@@ -56,19 +135,29 @@ button {
   display: none;
 }
 
-/* ------------------ PRIORITY BADGES ------------------ */
+/* PRIORITY BADGES */
 .priority {
+  display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.75em;
+  margin-left: 4px;
 }
 
-.priority.High { background: #e11d48; }
-.priority.Mid { background: #f59e0b; color: black; }
-.priority.Low { background: #22c55e; }
+.priority.High {
+  background: #e11d48;
+}
+.priority.Mid {
+  background: #f59e0b;
+  color: black;
+}
+.priority.Low {
+  background: #22c55e;
+}
 
+/* ERROR BOX (ACCOUNTS PAGE) */
 .error-box {
-  background: #7f1d1d; /*deep red*/
+  background: #7f1d1d;
   color: #fff;
   padding: 10px;
   border-radius: 6px;
@@ -79,18 +168,27 @@ button {
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-3px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
 }
 
-/* ------------------ TOAST ------------------ */
+/* TOAST POP-UP */
 .toast {
   position: fixed;
   bottom: 30px;
   right: 30px;
-  background: #222;
+  background: #111827;
   color: white;
   padding: 14px 20px;
   border-radius: 10px;
@@ -101,6 +199,7 @@ button {
   opacity: 0;
   transform: translateY(40px);
   transition: opacity 0.35s ease, transform 0.35s ease;
+  z-index: 1000;
 }
 
 .toast.show {
@@ -128,27 +227,28 @@ button {
   color: #4ade80;
 }
 
-/* ------------------ NAV BUTTONS ------------------ */
+/* NAV BUTTONS */
 .nav-btn {
-  background: #333;
-  color: #eee;
+  background: #334155;
+  color: #e5e7eb;
   border: none;
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
-  margin-right: 6px;
+  margin-left: 6px;
   transition: 0.2s;
+  font-size: 0.9rem;
 }
 
-.nav-btn:hover { background: #555; }
+.nav-btn:hover {
+  background: #475569;
+}
 
-
-
-/* ---------- MODAL ---------- */
+/* MODAL */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.65);
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -164,12 +264,12 @@ button {
 }
 
 .modal-box {
-  background: #1f1f1f;
+  background: #1f2933;
   padding: 25px;
   width: 320px;
   border-radius: 12px;
   text-align: center;
-  box-shadow: 0 0 20px rgba(0,0,0,0.4);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
 }
 
 .modal-title {

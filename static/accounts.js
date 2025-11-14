@@ -8,6 +8,7 @@ const signupForm = document.getElementById("signupForm");
 const loginForm = document.getElementById("loginForm");
 const logoutBtn = document.getElementById("logoutBtn");
 const recoveryForm = document.getElementById("recoveryForm");
+const updateForm = document.getElementById("updateForm");
 
 const profileName = document.getElementById("profile-name");
 const profileUsername = document.getElementById("profile-username");
@@ -15,26 +16,37 @@ const profileUsername = document.getElementById("profile-username");
 const signupError = document.getElementById("signup-error");
 const loginError = document.getElementById("login-error");
 const recoveryError = document.getElementById("recovery-error");
+const updateError = document.getElementById("update-error");
 
 const toast = document.getElementById("toast");
 const toastMsg = document.getElementById("toast-msg");
-const updateError = document.getElementById("update-error");
 
-//auto-detects logged-in user when visiting '/accounts'
+let currentUser = null;
+
+//toast
+function showToast(message, duration = 4000) {
+  toastMsg.textContent = message;
+  toast.classList.remove("hidden");
+  toast.classList.add("show");
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.classList.add("hidden"), 300);
+  }, duration);
+}
+
+//auto-detect logged-in user when visiting /accounts
 (async () => {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
+    currentUser = data.user;
 
-    if (window.location.hash === "#profile" && data.user) {
-      //user already logged in -> show profile section
-      signupSection.classList.add("hidden");
-      loginSection.classList.add("hidden");
-      profileSection.classList.remove("hidden");
-      profileName.textContent = data.user.name;
-      profileUsername.textContent = data.user.username;
+    const hash = window.location.hash;
+
+    if (hash === "#profile" && currentUser) {
+      showProfile(currentUser);
     } else {
-      //user not logged in -> show login section
       signupSection.classList.add("hidden");
       loginSection.classList.remove("hidden");
     }
@@ -43,31 +55,17 @@ const updateError = document.getElementById("update-error");
   }
 })();
 
-
-
-//toast func
-function showToast(message, duration = 4000) {
-  toastMsg.textContent = message;
-  toast.classList.remove("hidden");
-  toast.classList.add("show");
-
-  setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.classList.add("hidden"), 300); //wait for fade-out
-  }, duration);
-}
-
-//switch between forms for visibility
+//switch between forms
 document.getElementById("show-login").addEventListener("click", () => {
-    signupSection.classList.add("hidden");
-    loginSection.classList.remove("hidden");
-    signupError.classList.add("hidden");
+  signupSection.classList.add("hidden");
+  loginSection.classList.remove("hidden");
+  signupError.classList.add("hidden");
 });
 
 document.getElementById("show-signup").addEventListener("click", () => {
-    loginSection.classList.add("hidden");
-    signupSection.classList.remove("hidden");
-    loginError.classList.add("hidden");
+  loginSection.classList.add("hidden");
+  signupSection.classList.remove("hidden");
+  loginError.classList.add("hidden");
 });
 
 document.getElementById("forgot-password-link").addEventListener("click", () => {
@@ -82,50 +80,44 @@ document.getElementById("back-to-login").addEventListener("click", () => {
   recoveryError.classList.add("hidden");
 });
 
-
-//Signup
+//signup
 signupForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const username = document.getElementById("su_username").value.trim();
-    const password = document.getElementById("su_password").value.trim();
-    const name = document.getElementById("su_name").value.trim();
+  e.preventDefault();
+  const username = document.getElementById("su_username").value.trim();
+  const password = document.getElementById("su_password").value.trim();
+  const name = document.getElementById("su_name").value.trim();
 
-    const errorBox = document.getElementById("signup-error");
+  if (!username || !password || !name) {
+    signupError.textContent = "Please fill out all fields.";
+    signupError.classList.remove("hidden");
+    setTimeout(() => signupError.classList.add("hidden"), 10000);
+    return;
+  }
 
-    if (!username || !password || !name) {
-      errorBox.textContent = "Please fill out all fields.";
-      errorBox.classList.remove("hidden");
-      setTimeout(() => errorBox.classList.add("hidden"), 10000);
-      return;
-    }
+  const res = await fetch("/api/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, name }),
+  });
 
-    const res = await fetch("/api/signup", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({username, password, name}),
-    });   //send JSON data to backend
+  const data = await res.json();
 
-    const data = await res.json();
+  if (!res.ok) {
+    signupError.textContent = data.error || "Error creating account.";
+    signupError.classList.remove("hidden");
+    setTimeout(() => signupError.classList.add("hidden"), 10000);
+    return;
+  }
 
-    if (!res.ok) {
-      errorBox.textContent = data.error || "Error creating account.";
-      errorBox.classList.remove("hidden");
-      setTimeout(() => errorBox.classList.add("hidden"), 10000);
-      return;
-    }
-
-    //Success
-    showToast("✅ Account created successfully! You can now log in.");
-
-    signupSection.classList.add("hidden");
-    loginSection.classList.remove("hidden");
-    signupForm.reset();
-    signupError.classList.add("hidden");
+  showToast("✅ Account created successfully! You can now log in.");
+  signupSection.classList.add("hidden");
+  loginSection.classList.remove("hidden");
+  signupForm.reset();
+  signupError.classList.add("hidden");
 });
 
-
-//Login
-document.getElementById("loginForm").addEventListener("submit", async (e) => {
+//login
+loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const username = document.getElementById("li_username").value.trim();
   const password = document.getElementById("li_password").value.trim();
@@ -140,7 +132,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
-  });     //check creds
+  });
 
   const data = await res.json();
 
@@ -148,33 +140,40 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     loginError.textContent = data.error || "Invalid username or password.";
     loginError.classList.remove("hidden");
     loginError.style.animation = "none";
-    loginError.offsetHeight; // reflow for shake effect
+    loginError.offsetHeight;
     loginError.style.animation = "shake 0.3s ease";
     setTimeout(() => loginError.classList.add("hidden"), 4000);
     return;
   }
-  //Success (no localStorage needed for auth now)
+
+  //if successful, goes to TDL page
   window.location.href = "/todo";
 });
 
-
-//Show Profile
+//show profile
 function showProfile(user) {
+  currentUser = user;
   signupSection.classList.add("hidden");
   loginSection.classList.add("hidden");
+  recoverySection.classList.add("hidden");
   profileSection.classList.remove("hidden");
 
   profileName.textContent = user.name;
   profileUsername.textContent = user.username;
 
-  showToast(`👋 Welcome back, ${user.name}!`);  //displays message for user
+  showToast(`👋 Welcome, ${user.name}!`);
 }
 
-//Update Profile
+//update profile
 updateForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  if (!currentUser) {
+    updateError.textContent = "Not authenticated.";
+    updateError.classList.remove("hidden");
+    return;
+  }
+
   const name = document.getElementById("update_name").value.trim();
   const username = document.getElementById("update_username").value.trim();
   const password = document.getElementById("update_password").value.trim();
@@ -185,7 +184,7 @@ updateForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  const res = await fetch(`/api/update_user/${user.id}`, {
+  const res = await fetch(`/api/update_user/${currentUser.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, username, password }),
@@ -200,17 +199,18 @@ updateForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  localStorage.setItem("user", JSON.stringify(data.user));
   showProfile(data.user);
   showToast("✅ Profile updated successfully!");
   updateForm.reset();
 });
 
-//Recover Password
+//recover password
 recoveryForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const username = document.getElementById("recovery_username").value.trim();
+  const username = document
+    .getElementById("recovery_username")
+    .value.trim();
   const new_password = document.getElementById("new_password").value.trim();
 
   if (!username || !new_password) {
@@ -240,23 +240,15 @@ recoveryForm.addEventListener("submit", async (e) => {
   recoveryForm.reset();
 });
 
-
-//Logout
-logoutBtn.addEventListener("click", () => {
-  localStorage.removeItem("user");    //clear session data, back to login
+//logout from profile page
+logoutBtn.addEventListener("click", async () => {
+  await fetch("/api/logout", { method: "POST" });
+  currentUser = null;
   profileSection.classList.add("hidden");
   loginSection.classList.remove("hidden");
 });
 
-//Back to To-Do List button
+//back to TDL page
 document.getElementById("backToTodoBtn").addEventListener("click", () => {
   window.location.href = "/todo";
-});
-
-//Data persists on refresh
-window.addEventListener("load", () => {
-  const user = JSON.parse(localStorage.getItem("user"));  //auto-restore state saved in JSON
-  if (user) {
-    showProfile(user);
-  }
 });

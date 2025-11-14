@@ -1,148 +1,155 @@
+from flask import (
+    Flask, g, jsonify, request,
+    send_from_directory, session, redirect
+)
 from flask_bcrypt import Bcrypt
-from flask import Flask, g, jsonify, request, send_from_directory, session, redirect       #routing & API routes
-import sqlite3, os                                                      #comms to db, handle file paths
+import sqlite3, os
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-#files for to-do tasks
-TASKS_DB_PATH = os.path.join(APP_DIR, 'tasks.db')
-TASKS_SCHEMA_PATH = os.path.join(APP_DIR, 'schema_tasks.sql')
-#files for user accounts
-USERS_DB_PATH = os.path.join(APP_DIR, 'users.db')
-USERS_SCHEMA_PATH = os.path.join(APP_DIR, 'schema_users.sql')
+DB_PATH = os.path.join(APP_DIR, "app.db")
+SCHEMA_PATH = os.path.join(APP_DIR, "schema_app.sql")
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
-bcrypt = Bcrypt(app)    #init Bcrypt PW encryption
-app.secret_key = "change-me-in-prod"    #needed for Flask session cookies
+bcrypt = Bcrypt(app)
+app.secret_key = "change-me-in-prod"   #for session cookies
 
-def init_db():          #read table, or create one
-    #DB for to-do tasks
-    if not os.path.exists(TASKS_DB_PATH):
-        db = sqlite3.connect(TASKS_DB_PATH)
-        with open(TASKS_SCHEMA_PATH, "r") as f:
+
+## DB HELPERS ##
+
+def init_db():
+    """Create app.db from schema_app.sql if it doesn't exist."""
+    if not os.path.exists(DB_PATH):
+        db = sqlite3.connect(DB_PATH)
+        with open(SCHEMA_PATH, "r") as f:
             db.executescript(f.read())
         db.commit()
         db.close()
-        print("Created tasks.db")
+        print("Created app.db")
 
-    #DB for user accounts
-    if not os.path.exists(USERS_DB_PATH):
-        db = sqlite3.connect(USERS_DB_PATH)
-        with open(USERS_SCHEMA_PATH, "r") as f:
-            db.executescript(f.read())
-        db.commit()
-        db.close()
-        print("Created users.db")
 
-#DB init
 with app.app_context():
     init_db()
 
-#DB helpers for to-do tasks
-def get_tasks_db():
-    if 'tasks_db' not in g:
-        g.tasks_db = sqlite3.connect(TASKS_DB_PATH)
-        g.tasks_db.row_factory = sqlite3.Row
-    return g.tasks_db
 
-#DB helper for user accounts (g obj = per req db conn)
-def get_users_db():
-    if 'users_db' not in g:
-        g.users_db = sqlite3.connect(USERS_DB_PATH)
-        g.users_db.row_factory = sqlite3.Row
-    return g.users_db
+def get_db():
+    if "db" not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
 
 @app.teardown_appcontext
 def close_db(exception):
-    db_task = g.pop('tasks_db', None)
-    if db_task is not None:
-        db_task.close()
-    db_user = g.pop('users_db', None)
-    if db_user is not None:
-        db_user.close()
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
 
-#Auth helpers
+
+## AUTH HELPERS ##
+
 def current_user_id():
     return session.get("user_id")
+
 
 def require_login():
     if not current_user_id():
         return jsonify({"error": "Not authenticated"}), 401
 
 
-#To-Do tasks API Routes (per user)
-@app.get("/api/tasks")
-def get_tasks():
-    uid = current_user_id()
-    if not uid:
-        return jsonify({"error": "Not authenticated"}), 401
-    
-    db = get_tasks_db()
-    rows = db.execute(
-        "SELECT * FROM tasks WHERE user_id=? ORDER BY id DESC", (uid,)
-    ).fetchall()
-    return jsonify([dict(r) for r in rows])
+def ensure_personal_list(uid):
+    """
+    Ensure the current user has a personal list.
+    Returns the row (id, name, owner_id, list_type).
+    """
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM collab_lists WHERE owner_id=? AND list_type='personal'",
+        (uid,),
+    ).fetchone()
 
-@app.post("/api/tasks")
-def add_task():
-    uid = current_user_id()
-    if not uid:
-        return jsonify({"error": "Not authenticated"}), 401
-
-    data = request.json or {}
-    print("DEBUG: Received data ->", data)  #this will print in terminal
-    title = data.get("title", "").strip()
-    if not title:
-        return jsonify({"error": "Invalid input"}), 400
-
-    db = get_tasks_db()
-    db.execute(
-        "INSERT INTO tasks (user_id, title, due_date, due_time, completed, priority)"
-        "VALUES (?, ?, ?, ?, 0, ?)",
-        (uid, title, data.get("due_date"), data.get("due_time"), data.get("priority", "Low"))
-    )
-    db.commit()
-    return jsonify({"status": "ok"}), 201
-
-@app.put("/api/tasks/<int:task_id>")
-def update_task(task_id):
-    uid = current_user_id()
-    if not uid:
-        return jsonify({"error": "Not authenticated"}), 401
-
-    data = request.json or {}
-    db = get_tasks_db()
-
-    #only allow updating tasks owned by user
-    exists = db.execute("SELECT 1 FROM tasks WHERE id=? AND user_id=?", (task_id, uid)).fetchone()
-    if not exists:
-        return jsonify({"error": "Not found"}), 404
-
-    #only update completed if provided
-    if "completed" in data:
-        db.execute("UPDATE tasks SET completed=? WHERE id=? AND user_id=?", 
-                   (data["completed"], task_id, uid))
-    elif "title" in data:  #editing title/dates
+    if not row:
         db.execute(
-            "UPDATE tasks SET title=?, due_date=?, due_time=?, priority=? WHERE id=? AND user_id=?",
-            (data["title"], data.get("due_date"), data.get("due_time"), data.get("priority", "Low"), task_id, uid)
+            "INSERT INTO collab_lists (name, owner_id, list_type) "
+            "VALUES (?, ?, 'personal')",
+            ("My Tasks", uid),
         )
+        db.commit()
+        row = db.execute(
+            "SELECT * FROM collab_lists WHERE owner_id=? AND list_type='personal'",
+            (uid,),
+        ).fetchone()
 
-    db.commit()
-    return jsonify({"status": "ok"})
+    return row
 
-@app.delete("/api/tasks/<int:task_id>")
-def delete_task(task_id):
-    uid = current_user_id()
-    if not uid:
-        return jsonify({"error": "Not authenticated"}), 401
 
-    db = get_tasks_db()
-    db.execute("DELETE FROM tasks WHERE id=? AND user_id=?", (task_id, uid))
-    db.commit()
-    return jsonify({"deleted_id": task_id})
+def user_can_access_list(uid, list_id):
+    """Return the collab_lists row if user can access it; else None."""
+    db = get_db()
+    cl = db.execute(
+        "SELECT * FROM collab_lists WHERE id=?",
+        (list_id,),
+    ).fetchone()
+    if not cl:
+        return None
 
-#User Accounts API Routes   
-@app.post("/api/signup")    #(create new user)
+    #owner always has access
+    if cl["owner_id"] == uid:
+        return cl
+
+    #if it's personal & not owner -> no access
+    if cl["list_type"] == "personal":
+        return None
+
+    #for collab: check membership
+    member = db.execute(
+        "SELECT 1 FROM collab_members WHERE list_id=? AND user_id=?",
+        (list_id, uid),
+    ).fetchone()
+
+    if member:
+        return cl
+    return None
+
+
+def user_can_access_task(uid, task_id):
+    """Return (task_row, list_row) if user can access this task."""
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT t.*, cl.id AS cl_id, cl.owner_id, cl.list_type
+        FROM tasks t
+        JOIN collab_lists cl ON t.list_id = cl.id
+        WHERE t.id = ?
+        """,
+        (task_id,),
+    ).fetchone()
+
+    if not row:
+        return None, None
+
+    #owner
+    if row["owner_id"] == uid:
+        return row, row
+
+    #of personal & not owner
+    if row["list_type"] == "personal":
+        return None, None
+
+    #if collab, check membership
+    member = db.execute(
+        "SELECT 1 FROM collab_members WHERE list_id=? AND user_id=?",
+        (row["cl_id"], uid),
+    ).fetchone()
+
+    if member:
+        return row, row
+
+    return None, None
+
+
+## AUTH ROUTES ##
+
+@app.post("/api/signup")
 def signup():
     data = request.json or {}
     username = data.get("username", "").strip()
@@ -152,25 +159,36 @@ def signup():
     if not username or not password or not name:
         return jsonify({"error": "Please fill out all fields"}), 400
 
-    db = get_users_db()
-
-    #check if username exists
-    existing = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    db = get_db()
+    existing = db.execute(
+        "SELECT 1 FROM users WHERE username=?",
+        (username,),
+    ).fetchone()
     if existing:
         return jsonify({"error": "This username already exists"}), 400
 
-    #insert new user and encrpyt password
-    hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
-    db.execute(
+    hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8")
+
+    cur = db.cursor()
+    cur.execute(
         "INSERT INTO users (username, password, name) VALUES (?, ?, ?)",
-        (username, hashed_pw, name)
+        (username, hashed_pw, name),
     )
+    user_id = cur.lastrowid
+
+    #create a user's personal list
+    cur.execute(
+        "INSERT INTO collab_lists (name, owner_id, list_type) "
+        "VALUES (?, ?, 'personal')",
+        ("My Tasks", user_id),
+    )
+
     db.commit()
 
     return jsonify({"status": "ok"}), 201
 
 
-@app.post("/api/login")     #LOGIN / auth user 
+@app.post("/api/login")
 def login():
     data = request.json or {}
     username = data.get("username", "").strip()
@@ -179,104 +197,393 @@ def login():
     if not username or not password:
         return jsonify({"error": "Username or Password is missing"}), 400
 
-    db = get_users_db()             #PW Encrypt in Login
-    user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
-    #compare PW w/ hashed PW in db
+    db = get_db()
+    user = db.execute(
+        "SELECT * FROM users WHERE username=?",
+        (username,),
+    ).fetchone()
+
     if not user or not bcrypt.check_password_hash(user["password"], password):
         return jsonify({"error": "Invalid username or password."}), 401
 
-    
-    session["user_id"] = user["id"]          #persists login in session cookie
+    session["user_id"] = user["id"]
     session["name"] = user["name"]
     session["username"] = user["username"]
 
     return jsonify({"user": dict(user)}), 200
 
-@app.post("/api/logout")    #LOGOUT
+
+@app.post("/api/logout")
 def logout():
     session.clear()
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok"}), 200
 
 
-@app.get("/api/me")     #Used by frontend to verify session on /todo
+@app.get("/api/me")
 def me():
     uid = current_user_id()
     if not uid:
         return jsonify({"user": None}), 200
-    return jsonify({
-        "user": {
-            "id": uid,
-            "username": session.get("username"),
-            "name": session.get("name")
+
+    return jsonify(
+        {
+            "user": {
+                "id": uid,
+                "username": session.get("username"),
+                "name": session.get("name"),
+            }
         }
-    }), 200
+    ), 200
 
 
-#Update user profile
+## PROFILE + PASSWORD RECOVERY ##
+
 @app.put("/api/update_user/<int:user_id>")
 def update_user(user_id):
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
-    name = data.get("name")
+    if not current_user_id():
+        return jsonify({"error": "Not authenticated"}), 401
 
-    db = get_users_db()
+    data = request.json or {}
+    username = data.get("username") or None
+    password = data.get("password") or None
+    name = data.get("name") or None
+
+    db = get_db()
     user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    #check username for dupes
     if username and username != user["username"]:
-        existing = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        existing = db.execute(
+            "SELECT 1 FROM users WHERE username=?",
+            (username,),
+        ).fetchone()
         if existing:
             return jsonify({"error": "Username already taken"}), 400
 
-    #hash PW only if user entered one
-    hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8') if password else None
+    hashed_pw = (
+        bcrypt.generate_password_hash(password).decode("utf-8")
+        if password
+        else None
+    )
 
-    #dynamic update query
-    db.execute("""
+    db.execute(
+        """
         UPDATE users
         SET username = COALESCE(?, username),
             password = COALESCE(?, password),
             name = COALESCE(?, name)
         WHERE id = ?
-    """, (username, hashed_pw, name, user_id))
+        """,
+        (username, hashed_pw, name, user_id),
+    )
     db.commit()
 
-    updated_user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
-    return jsonify({"user": dict(updated_user)}), 200
+    updated = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
 
-#Password recovery
+    #if updating user self profile, refresh session
+    if user_id == current_user_id():
+        session["name"] = updated["name"]
+        session["username"] = updated["username"]
+
+    return jsonify({"user": dict(updated)}), 200
+
+
 @app.post("/api/recover")
 def recover_password():
-    data = request.json
-    username = data.get("username")
-    new_password = data.get("new_password")
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    new_password = data.get("new_password", "").strip()
 
-    db = get_users_db()
-    user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    if not username or not new_password:
+        return jsonify({"error": "Please fill out all fields"}), 400
+
+    db = get_db()
+    user = db.execute(
+        "SELECT * FROM users WHERE username=?",
+        (username,),
+    ).fetchone()
     if not user:
         return jsonify({"error": "No account found for this username"}), 404
 
-    hashed_pw = bcrypt.generate_password_hash(new_password).decode('utf-8')
-    db.execute("UPDATE users SET password=? WHERE username=?", (hashed_pw, username))
+    hashed_pw = bcrypt.generate_password_hash(new_password).decode("utf-8")
+    db.execute(
+        "UPDATE users SET password=? WHERE username=?",
+        (hashed_pw, username),
+    )
     db.commit()
 
     return jsonify({"status": "Password updated successfully"}), 200
 
-#PAGES
-#Serve frontend of To-do list
+
+## TDL LISTS (PERSONAL + COLLAB) ##
+
+@app.get("/api/lists")
+def lists():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    db = get_db()
+
+    #ensure user's personal TDL exists
+    personal_row = ensure_personal_list(uid)
+
+    personal = {
+        "id": personal_row["id"],
+        "name": personal_row["name"],
+        "type": personal_row["list_type"],
+    }
+
+    owned = db.execute(
+        """
+        SELECT id, name, list_type
+        FROM collab_lists
+        WHERE owner_id=? AND list_type='collab'
+        ORDER BY id DESC
+        """,
+        (uid,),
+    ).fetchall()
+
+    owned_collab = [
+        {"id": r["id"], "name": r["name"], "type": r["list_type"], "is_owner": True}
+        for r in owned
+    ]
+
+    member = db.execute(
+        """
+        SELECT cl.id, cl.name, cl.list_type, u.name AS owner_name, u.id AS owner_id
+        FROM collab_lists cl
+        JOIN collab_members cm ON cm.list_id = cl.id
+        JOIN users u ON u.id = cl.owner_id
+        WHERE cm.user_id=? AND cl.list_type='collab'
+        ORDER BY cl.id DESC
+        """,
+        (uid,),
+    ).fetchall()
+
+    member_collab = [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "type": r["list_type"],
+            "owner_name": r["owner_name"],
+            "owner_id": r["owner_id"],
+            "is_owner": False,
+        }
+        for r in member
+    ]
+
+    return jsonify(
+        {
+            "personal": personal,
+            "collab_owned": owned_collab,
+            "collab_member": member_collab,
+        }
+    ), 200
+
+
+@app.post("/api/collab_lists")
+def create_collab_list():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
+    name = data.get("name", "").strip()
+
+    if not name:
+        return jsonify({"error": "List name required"}), 400
+
+    db = get_db()
+    cur = db.cursor()
+    cur.execute(
+        "INSERT INTO collab_lists (name, owner_id, list_type) "
+        "VALUES (?, ?, 'collab')",
+        (name, uid),
+    )
+    list_id = cur.lastrowid
+
+    db.commit()
+
+    return jsonify({"id": list_id, "name": name, "type": "collab"}), 201
+
+
+@app.post("/api/collab_lists/<int:list_id>/invite")
+def invite_to_collab(list_id):
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    db = get_db()
+
+    cl = db.execute(
+        "SELECT * FROM collab_lists WHERE id=?",
+        (list_id,),
+    ).fetchone()
+    if not cl:
+        return jsonify({"error": "List not found"}), 404
+
+    if cl["owner_id"] != uid:
+        return jsonify({"error": "Only the owner can invite members."}), 403
+
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    if not username:
+        return jsonify({"error": "Username required"}), 400
+
+    user = db.execute(
+        "SELECT * FROM users WHERE username=?",
+        (username,),
+    ).fetchone()
+    if not user:
+        return jsonify({"error": "No user with that username"}), 404
+
+    #avoid duplicate membership
+    existing = db.execute(
+        "SELECT 1 FROM collab_members WHERE list_id=? AND user_id=?",
+        (list_id, user["id"]),
+    ).fetchone()
+    if existing:
+        return jsonify({"error": "User already in this list"}), 400
+
+    db.execute(
+        "INSERT INTO collab_members (list_id, user_id) VALUES (?, ?)",
+        (list_id, user["id"]),
+    )
+    db.commit()
+
+    return jsonify({"status": "ok"}), 200
+
+
+## TASK ROUTES (per list) ## 
+
+@app.get("/api/tasks")
+def get_tasks():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    db = get_db()
+    list_id = request.args.get("list_id", type=int)
+
+    if list_id is None:
+        #default to user's personal list
+        personal = ensure_personal_list(uid)
+        list_id = personal["id"]
+
+    cl = user_can_access_list(uid, list_id)
+    if not cl:
+        return jsonify({"error": "List not found or no access"}), 404
+
+    rows = db.execute(
+        "SELECT * FROM tasks WHERE list_id=? ORDER BY id DESC",
+        (list_id,),
+    ).fetchall()
+
+    return jsonify([dict(r) for r in rows]), 200
+
+
+@app.post("/api/tasks")
+def add_task():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
+    title = data.get("title", "").strip()
+    due_date = data.get("due_date") or None
+    due_time = data.get("due_time") or None
+    priority = data.get("priority", "Low")
+
+    list_id = data.get("list_id", None)
+    db = get_db()
+
+    if list_id is None:
+        personal = ensure_personal_list(uid)
+        list_id = personal["id"]
+
+    cl = user_can_access_list(uid, list_id)
+    if not cl:
+        return jsonify({"error": "List not found or no access"}), 404
+
+    if not title:
+        return jsonify({"error": "Invalid input"}), 400
+
+    db.execute(
+        "INSERT INTO tasks (list_id, title, due_date, due_time, priority, completed) "
+        "VALUES (?, ?, ?, ?, ?, 0)",
+        (list_id, title, due_date, due_time, priority),
+    )
+    db.commit()
+
+    return jsonify({"status": "ok"}), 201
+
+
+@app.put("/api/tasks/<int:task_id>")
+def update_task(task_id):
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
+    db = get_db()
+
+    task, cl = user_can_access_task(uid, task_id)
+    if not task:
+        return jsonify({"error": "Task not found or no access"}), 404
+
+    #only update fields provided
+    title = data.get("title", task["title"])
+    due_date = data.get("due_date", task["due_date"])
+    due_time = data.get("due_time", task["due_time"])
+    priority = data.get("priority", task["priority"])
+    completed = data.get("completed", task["completed"])
+
+    db.execute(
+        """
+        UPDATE tasks
+        SET title=?, due_date=?, due_time=?, priority=?, completed=?
+        WHERE id=?
+        """,
+        (title, due_date, due_time, priority, completed, task_id),
+    )
+    db.commit()
+
+    return jsonify({"status": "ok"}), 200
+
+
+@app.delete("/api/tasks/<int:task_id>")
+def delete_task(task_id):
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    db = get_db()
+    task, cl = user_can_access_task(uid, task_id)
+    if not task:
+        return jsonify({"error": "Task not found or no access"}), 404
+
+    db.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+    db.commit()
+
+    return jsonify({"deleted_id": task_id}), 200
+
+
+## PAGES ##
+
 @app.route("/todo")
 def todo():
-    return send_from_directory("static", "index.html")  #To-Do UI (replaced index.html)
+    #index.html is inside /static
+    return send_from_directory("static", "index.html")
 
-#different route from to-do list, for accessing accounts
+
 @app.route("/accounts")
 def accounts():
+    #accounts.html is in project root
     return send_from_directory("", "accounts.html")
 
-#optional: default route sends to accounts (or to /todo if already logged in)
+
 @app.route("/")
 def root():
     if current_user_id():
