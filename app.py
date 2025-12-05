@@ -3,8 +3,7 @@ from flask import (
     send_from_directory, session, redirect
 )
 from flask_bcrypt import Bcrypt
-import sqlite3, os
-import json
+import sqlite3, os, json
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(APP_DIR, "app.db")
@@ -15,7 +14,7 @@ bcrypt = Bcrypt(app)
 app.secret_key = "change-me-in-prod"   #for session cookies
 
 
-## DB HELPERS ##
+## ---------------- DB HELPERS ---------------- ##
 
 def init_db():
     """Create app.db from schema_app.sql if it doesn't exist."""
@@ -46,7 +45,7 @@ def close_db(exception):
         db.close()
 
 
-## AUTH HELPERS ##
+## ---------------- AUTH HELPERS ---------------- ##
 
 def current_user_id():
     return session.get("user_id")
@@ -58,6 +57,9 @@ def require_login():
 
 
 def ensure_personal_list(uid):
+    """
+    Ensures the logged-in user has exactly ONE personal list.
+    """
     db = get_db()
     row = db.execute(
         "SELECT * FROM lists WHERE owner_id=? AND list_type='personal'",
@@ -66,10 +68,11 @@ def ensure_personal_list(uid):
 
     if not row:
         db.execute(
-            "INSERT INTO lists (name, owner_id, list_type) VALUES (?, ?, 'personal')",
-            ("My Tasks", uid),
+            "INSERT INTO lists (name, owner_id, list_type, members) VALUES (?, ?, 'personal', '[]')",
+            ("My Tasks", uid)
         )
         db.commit()
+
         row = db.execute(
             "SELECT * FROM lists WHERE owner_id=? AND list_type='personal'",
             (uid,)
@@ -81,20 +84,19 @@ def ensure_personal_list(uid):
 def user_can_access_list(uid, list_id):
     db = get_db()
 
-    row = db.execute(
-        "SELECT * FROM lists WHERE id=?",
-        (list_id,),
-    ).fetchone()
-
+    row = db.execute("SELECT * FROM lists WHERE id=?", (list_id,)).fetchone()
     if not row:
         return None
 
+    # Owner always allowed
     if row["owner_id"] == uid:
         return row
 
+    # Personal: only owner allowed
     if row["list_type"] == "personal":
         return None
 
+    # Collaborative: check membership JSON
     members = json.loads(row["members"])
     if uid in members:
         return row
@@ -128,8 +130,7 @@ def user_can_access_task(uid, task_id):
     return None, None
 
 
-
-## AUTH ROUTES ##
+## ---------------- AUTH ROUTES ---------------- ##
 
 @app.post("/api/signup")
 def signup():
@@ -143,9 +144,9 @@ def signup():
 
     db = get_db()
     existing = db.execute(
-        "SELECT 1 FROM users WHERE username=?",
-        (username,),
+        "SELECT 1 FROM users WHERE username=?", (username,)
     ).fetchone()
+
     if existing:
         return jsonify({"error": "This username already exists"}), 400
 
@@ -154,18 +155,18 @@ def signup():
     cur = db.cursor()
     cur.execute(
         "INSERT INTO users (username, password, name) VALUES (?, ?, ?)",
-        (username, hashed_pw, name),
+        (username, hashed_pw, name)
     )
     user_id = cur.lastrowid
 
-    # Create user's personal list (new schema)
-    cur.execute(
-        "INSERT INTO lists (name, owner_id, list_type, members) VALUES (?, ?, 'personal', '[]')",
-        ("My Tasks", user_id),
+    # Create personal list for the new user
+    db.execute(
+        "INSERT INTO lists (name, owner_id, list_type, members) "
+        "VALUES (?, ?, 'personal', '[]')",
+        ("My Tasks", user_id)
     )
 
     db.commit()
-
     return jsonify({"status": "ok"}), 201
 
 
@@ -180,8 +181,7 @@ def login():
 
     db = get_db()
     user = db.execute(
-        "SELECT * FROM users WHERE username=?",
-        (username,),
+        "SELECT * FROM users WHERE username=?", (username,)
     ).fetchone()
 
     if not user or not bcrypt.check_password_hash(user["password"], password):
@@ -206,18 +206,16 @@ def me():
     if not uid:
         return jsonify({"user": None}), 200
 
-    return jsonify(
-        {
-            "user": {
-                "id": uid,
-                "username": session.get("username"),
-                "name": session.get("name"),
-            }
+    return jsonify({
+        "user": {
+            "id": uid,
+            "username": session.get("username"),
+            "name": session.get("name"),
         }
-    ), 200
+    }), 200
 
 
-## PROFILE + PASSWORD RECOVERY ##
+## ---------------- PROFILE + RECOVERY ---------------- ##
 
 @app.put("/api/update_user/<int:user_id>")
 def update_user(user_id):
@@ -225,44 +223,37 @@ def update_user(user_id):
         return jsonify({"error": "Not authenticated"}), 401
 
     data = request.json or {}
-    username = data.get("username") or None
-    password = data.get("password") or None
-    name = data.get("name") or None
+    username = data.get("username")
+    password = data.get("password")
+    name = data.get("name")
 
     db = get_db()
     user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+
     if not user:
         return jsonify({"error": "User not found"}), 404
 
     if username and username != user["username"]:
         existing = db.execute(
-            "SELECT 1 FROM users WHERE username=?",
-            (username,),
+            "SELECT 1 FROM users WHERE username=?", (username,)
         ).fetchone()
         if existing:
             return jsonify({"error": "Username already taken"}), 400
 
-    hashed_pw = (
-        bcrypt.generate_password_hash(password).decode("utf-8")
-        if password
-        else None
-    )
+    hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8") if password else None
 
-    db.execute(
-        """
+    db.execute("""
         UPDATE users
         SET username = COALESCE(?, username),
             password = COALESCE(?, password),
             name = COALESCE(?, name)
         WHERE id = ?
-        """,
-        (username, hashed_pw, name, user_id),
-    )
+    """, (username, hashed_pw, name, user_id))
+
     db.commit()
 
     updated = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
 
-    #if updating user self profile, refresh session
     if user_id == current_user_id():
         session["name"] = updated["name"]
         session["username"] = updated["username"]
@@ -281,23 +272,24 @@ def recover_password():
 
     db = get_db()
     user = db.execute(
-        "SELECT * FROM users WHERE username=?",
-        (username,),
+        "SELECT * FROM users WHERE username=?", (username,)
     ).fetchone()
+
     if not user:
-        return jsonify({"error": "No account found for this username"}), 404
+        return jsonify({"error": "No account found"}), 404
 
     hashed_pw = bcrypt.generate_password_hash(new_password).decode("utf-8")
+
     db.execute(
         "UPDATE users SET password=? WHERE username=?",
-        (hashed_pw, username),
+        (hashed_pw, username)
     )
     db.commit()
 
     return jsonify({"status": "Password updated successfully"}), 200
 
 
-## TDL LISTS (PERSONAL + COLLAB) ##
+## ---------------- LISTS (PERSONAL + COLLAB) ---------------- ##
 
 @app.get("/api/lists")
 def lists():
@@ -306,47 +298,57 @@ def lists():
         return jsonify({"error": "Not authenticated"}), 401
 
     db = get_db()
-    personal_row = ensure_personal_list(uid)
+    personal = ensure_personal_list(uid)
 
-    personal = {
-        "id": personal_row["id"],
-        "name": personal_row["name"],
-        "type": personal_row["list_type"],
+    personal_json = {
+        "id": personal["id"],
+        "name": personal["name"],
+        "type": personal["list_type"]
     }
 
     owned = db.execute(
-        "SELECT id, name, list_type FROM lists WHERE owner_id=? AND list_type='collab'",
+        "SELECT id, name, list_type, members FROM lists "
+        "WHERE owner_id=? AND list_type='collab'",
         (uid,)
     ).fetchall()
 
-    owned_collab = [dict(r) | {"is_owner": True} for r in owned]
+    owned_collab = [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "type": r["list_type"],
+            "is_owner": True
+        }
+        for r in owned
+    ]
 
-    # member lists (user is inside members JSON)
-    member = db.execute(
+    # member lists
+    all_lists = db.execute(
         "SELECT * FROM lists WHERE list_type='collab'"
     ).fetchall()
 
     member_collab = []
-    for r in member:
-        members = json.loads(r["members"])
-        if uid in members and uid != r["owner_id"]:
+    for l in all_lists:
+        members = json.loads(l["members"])
+        if uid in members and uid != l["owner_id"]:
+            owner_name = db.execute(
+                "SELECT name FROM users WHERE id=?", (l["owner_id"],)
+            ).fetchone()["name"]
+
             member_collab.append({
-                "id": r["id"],
-                "name": r["name"],
-                "owner_id": r["owner_id"],
-                "owner_name": db.execute(
-                    "SELECT name FROM users WHERE id=?", (r["owner_id"],)
-                ).fetchone()["name"],
+                "id": l["id"],
+                "name": l["name"],
+                "type": l["list_type"],
+                "owner_id": l["owner_id"],
+                "owner_name": owner_name,
                 "is_owner": False
             })
 
-    return jsonify(
-        {
-            "personal": personal,
-            "collab_owned": owned_collab,
-            "collab_member": member_collab,
-        }
-    ), 200
+    return jsonify({
+        "personal": personal_json,
+        "collab_owned": owned_collab,
+        "collab_member": member_collab
+    }), 200
 
 
 @app.post("/api/collab_lists")
@@ -363,16 +365,18 @@ def create_collab_list():
 
     db = get_db()
     cur = db.cursor()
-    cur.execute(
-        "INSERT INTO lists (name, owner_id, list_type, members) VALUES (?, ?, 'collab', '[]')",
-        (name, uid),
-    )
-    list_id = cur.lastrowid
 
+    # FIXED INSERT — correct table + correct columns
+    cur.execute(
+        "INSERT INTO lists (name, owner_id, list_type, members) "
+        "VALUES (?, ?, 'collab', '[]')",
+        (name, uid)
+    )
+
+    list_id = cur.lastrowid
     db.commit()
 
     return jsonify({"id": list_id, "name": name, "type": "collab"}), 201
-
 
 
 @app.post("/api/collab_lists/<int:list_id>/invite")
@@ -382,8 +386,10 @@ def invite_to_collab(list_id):
         return jsonify({"error": "Not authenticated"}), 401
 
     db = get_db()
+    cl = db.execute(
+        "SELECT * FROM lists WHERE id=?", (list_id,)
+    ).fetchone()
 
-    cl = db.execute("SELECT * FROM lists WHERE id=?", (list_id,)).fetchone()
     if not cl:
         return jsonify({"error": "List not found"}), 404
 
@@ -394,14 +400,14 @@ def invite_to_collab(list_id):
     username = data.get("username", "").strip()
 
     user = db.execute(
-        "SELECT * FROM users WHERE username=?",
-        (username,)
+        "SELECT * FROM users WHERE username=?", (username,)
     ).fetchone()
 
     if not user:
         return jsonify({"error": "User not found"}), 404
 
     members = json.loads(cl["members"])
+
     if user["id"] in members:
         return jsonify({"error": "Already a member"}), 400
 
@@ -416,7 +422,7 @@ def invite_to_collab(list_id):
     return jsonify({"status": "ok"}), 200
 
 
-## TASK ROUTES (per list) ## 
+## ---------------- TASK ROUTES ---------------- ##
 
 @app.get("/api/tasks")
 def get_tasks():
@@ -425,10 +431,10 @@ def get_tasks():
         return jsonify({"error": "Not authenticated"}), 401
 
     db = get_db()
+
     list_id = request.args.get("list_id", type=int)
 
     if list_id is None:
-        #default to user's personal list
         personal = ensure_personal_list(uid)
         list_id = personal["id"]
 
@@ -438,7 +444,7 @@ def get_tasks():
 
     rows = db.execute(
         "SELECT * FROM tasks WHERE list_id=? ORDER BY id DESC",
-        (list_id,),
+        (list_id,)
     ).fetchall()
 
     return jsonify([dict(r) for r in rows]), 200
@@ -452,11 +458,12 @@ def add_task():
 
     data = request.json or {}
     title = data.get("title", "").strip()
-    due_date = data.get("due_date") or None
-    due_time = data.get("due_time") or None
+    due_date = data.get("due_date")
+    due_time = data.get("due_time")
     priority = data.get("priority", "Low")
 
-    list_id = data.get("list_id", None)
+    list_id = data.get("list_id")
+
     db = get_db()
 
     if list_id is None:
@@ -473,7 +480,7 @@ def add_task():
     db.execute(
         "INSERT INTO tasks (list_id, title, due_date, due_time, priority, completed) "
         "VALUES (?, ?, ?, ?, ?, 0)",
-        (list_id, title, due_date, due_time, priority),
+        (list_id, title, due_date, due_time, priority)
     )
     db.commit()
 
@@ -483,7 +490,7 @@ def add_task():
 @app.put("/api/tasks/<int:task_id>")
 def update_task(task_id):
     uid = current_user_id()
-    if not uid:
+    if not current_user_id():
         return jsonify({"error": "Not authenticated"}), 401
 
     data = request.json or {}
@@ -493,21 +500,18 @@ def update_task(task_id):
     if not task:
         return jsonify({"error": "Task not found or no access"}), 404
 
-    #only update fields provided
     title = data.get("title", task["title"])
     due_date = data.get("due_date", task["due_date"])
     due_time = data.get("due_time", task["due_time"])
     priority = data.get("priority", task["priority"])
     completed = data.get("completed", task["completed"])
 
-    db.execute(
-        """
+    db.execute("""
         UPDATE tasks
         SET title=?, due_date=?, due_time=?, priority=?, completed=?
         WHERE id=?
-        """,
-        (title, due_date, due_time, priority, completed, task_id),
-    )
+    """, (title, due_date, due_time, priority, completed, task_id))
+
     db.commit()
 
     return jsonify({"status": "ok"}), 200
@@ -521,6 +525,7 @@ def delete_task(task_id):
 
     db = get_db()
     task, cl = user_can_access_task(uid, task_id)
+
     if not task:
         return jsonify({"error": "Task not found or no access"}), 404
 
@@ -530,17 +535,15 @@ def delete_task(task_id):
     return jsonify({"deleted_id": task_id}), 200
 
 
-## PAGES ##
+## ---------------- PAGE ROUTES ---------------- ##
 
 @app.route("/todo")
 def todo():
-    #index.html is inside /static
     return send_from_directory("static", "index.html")
 
 
 @app.route("/accounts")
 def accounts():
-    #accounts.html is in project root
     return send_from_directory("", "accounts.html")
 
 
