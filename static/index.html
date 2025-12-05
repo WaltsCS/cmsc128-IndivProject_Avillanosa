@@ -129,14 +129,21 @@
 
 
   <!-- create collab list modal -->
-  <div id="createListModal" class="modal-overlay hidden">
+  <div id="newCollabModal" class="modal-overlay hidden">
     <div class="modal-box">
-      <h3 class="modal-title">New Collaborative List</h3>
-      <input id="newListName" class="form-control mb-3" placeholder="List name" />
+      <h3 class="modal-title">New collaborative list</h3>
+      <p class="modal-message">Give your list a name.</p>
+
+      <input
+        type="text"
+        id="new-collab-name"
+        class="form-control modal-input"
+        placeholder="e.g. Project Alpha"
+      />
 
       <div class="modal-buttons">
-        <button id="createListCancel" class="modal-btn cancel">Cancel</button>
-        <button id="createListConfirm" class="modal-btn create">Create</button>
+        <button id="newCollabCancel" class="modal-btn cancel">Cancel</button>
+        <button id="newCollabCreate" class="modal-btn primary">Create</button>
       </div>
     </div>
   </div>

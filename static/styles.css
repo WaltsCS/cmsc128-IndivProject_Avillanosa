@@ -314,8 +314,18 @@ button {
   background: #be123c;
 }
 
-/* Reuse delete modal styling but add create modal */
-#createListModal.show {
-  display: flex !important;
-  opacity: 1;
+/* New collaborative list modal tweaks */
+.modal-input {
+  margin: 0.5rem 0 1rem 0;
+}
+
+/* primary variant for modal button (blue) */
+.modal-btn.primary {
+  background-color: #0d6efd;
+  color: #ffffff;
+  border: none;
+}
+
+.modal-btn.primary:hover {
+  filter: brightness(1.1);
 }

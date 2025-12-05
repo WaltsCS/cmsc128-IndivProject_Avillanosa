@@ -147,7 +147,7 @@ loginForm.addEventListener("submit", async (e) => {
   }
 
   //if successful, goes to TDL page
-  window.location.href = "/todo";
+  window.location.replace("/todo");
 });
 
 //show profile

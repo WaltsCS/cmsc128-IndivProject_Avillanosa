@@ -14,15 +14,16 @@ const collabListContainer = document.getElementById("collabListContainer");
 const myTasksBtn = document.getElementById("myTasksBtn");
 const newCollabBtn = document.getElementById("newCollabBtn");
 
-const createListModal = document.getElementById("createListModal");
-const createListConfirm = document.getElementById("createListConfirm");
-const createListCancel = document.getElementById("createListCancel");
-const newListName = document.getElementById("newListName");
-
 const collabMeta = document.getElementById("collab-meta");
 const collabOwnerLabel = document.getElementById("collab-owner-label");
 const inviteForm = document.getElementById("inviteForm");
 const inviteUsernameInput = document.getElementById("invite-username");
+
+/* NEW: create-collab modal elements */
+const newCollabModal = document.getElementById("newCollabModal");
+const newCollabNameInput = document.getElementById("new-collab-name");
+const newCollabCreateBtn = document.getElementById("newCollabCreate");
+const newCollabCancelBtn = document.getElementById("newCollabCancel");
 
 let currentUser = null;
 let listsData = null;
@@ -44,7 +45,7 @@ let pendingDeleteID = null;
     document.getElementById(
       "welcome-user"
     ).textContent = `👋 Hello, ${currentUser.name}!`;
-    //load lists & tasks
+    // load lists & tasks
     await loadLists();
   } catch (err) {
     console.error("Auth check failed:", err);
@@ -108,7 +109,7 @@ async function loadLists() {
 
   renderSidebar();
 
-  //set default current list to personal if none
+  // set default current list to personal if none
   if (!currentListId && listsData.personal) {
     currentListId = listsData.personal.id;
     currentListType = "personal";
@@ -123,9 +124,9 @@ async function loadLists() {
 function renderSidebar() {
   collabListContainer.innerHTML = "";
 
-  //personal list button already exists (#myTasksBtn)
+  // personal list button already exists (#myTasksBtn)
 
-  //owned collab
+  // owned collab
   (listsData.collab_owned || []).forEach((lst) => {
     const btn = document.createElement("button");
     btn.className = "sidebar-item";
@@ -136,7 +137,7 @@ function renderSidebar() {
     collabListContainer.appendChild(btn);
   });
 
-  //member collab
+  // member collab
   (listsData.collab_member || []).forEach((lst) => {
     const btn = document.createElement("button");
     btn.className = "sidebar-item";
@@ -222,7 +223,7 @@ function updateCollabMeta() {
     return;
   }
 
-  //collab list
+  // collab list
   if (meta.is_owner) {
     collabOwnerLabel.textContent = "You are the owner of this list.";
     inviteForm.classList.remove("hidden");
@@ -261,19 +262,25 @@ collabListContainer.addEventListener("click", async (e) => {
   await loadTasks();
 });
 
+/* NEW: open create-collab modal */
 newCollabBtn.addEventListener("click", () => {
-  newListName.value = "";
-  createListModal.classList.add("show");
+  newCollabNameInput.value = "";
+  newCollabModal.classList.add("show");
+  newCollabModal.classList.remove("hidden");
+  newCollabNameInput.focus();
 });
 
-createListCancel.onclick = () => {
-  createListModal.classList.remove("show");
-};
+/* NEW: cancel create-collab */
+newCollabCancelBtn.addEventListener("click", () => {
+  newCollabModal.classList.remove("show");
+  setTimeout(() => newCollabModal.classList.add("hidden"), 200);
+});
 
-createListConfirm.onclick = async () => {
-  const name = newListName.value.trim();
+/* NEW: create collaborative list from modal */
+newCollabCreateBtn.addEventListener("click", async () => {
+  const name = newCollabNameInput.value.trim();
   if (!name) {
-    showToast("List name required.", "error");
+    showToast("List name required", "error");
     return;
   }
 
@@ -291,14 +298,15 @@ createListConfirm.onclick = async () => {
 
   const created = await res.json();
   showToast("Collaborative list created!", "success");
-  
-  createListModal.classList.remove("show");
-
   currentListId = created.id;
   currentListType = "collab";
-  await loadLists();
-};
 
+  // close modal
+  newCollabModal.classList.remove("show");
+  setTimeout(() => newCollabModal.classList.add("hidden"), 200);
+
+  await loadLists();
+});
 
 /* INVITE FORM (ONLY OWNER CAN INVITE) */
 inviteForm.addEventListener("submit", async (e) => {
@@ -456,11 +464,13 @@ function editTask(id, title, due_date, due_time, priority) {
 async function deleteTask(id) {
   pendingDeleteID = id;
   deleteModal.classList.add("show");
+  deleteModal.classList.remove("hidden");
 }
 
 deleteCancelBtn.onclick = () => {
   pendingDeleteID = null;
   deleteModal.classList.remove("show");
+  setTimeout(() => deleteModal.classList.add("hidden"), 200);
 };
 
 deleteConfirmBtn.onclick = async () => {
@@ -502,4 +512,4 @@ toastUndo.onclick = async () => {
   await loadTasks();
 };
 
-//loadTasks called from loadLists() once everything is set up
+// loadTasks called from loadLists() once everything is set up
