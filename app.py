@@ -4,6 +4,7 @@ from flask import (
 )
 from flask_bcrypt import Bcrypt
 import sqlite3, os
+import json
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(APP_DIR, "app.db")
@@ -57,94 +58,75 @@ def require_login():
 
 
 def ensure_personal_list(uid):
-    """
-    Ensure the current user has a personal list.
-    Returns the row (id, name, owner_id, list_type).
-    """
     db = get_db()
     row = db.execute(
-        "SELECT * FROM collab_lists WHERE owner_id=? AND list_type='personal'",
-        (uid,),
+        "SELECT * FROM lists WHERE owner_id=? AND list_type='personal'",
+        (uid,)
     ).fetchone()
 
     if not row:
         db.execute(
-            "INSERT INTO collab_lists (name, owner_id, list_type) "
-            "VALUES (?, ?, 'personal')",
+            "INSERT INTO lists (name, owner_id, list_type) VALUES (?, ?, 'personal')",
             ("My Tasks", uid),
         )
         db.commit()
         row = db.execute(
-            "SELECT * FROM collab_lists WHERE owner_id=? AND list_type='personal'",
-            (uid,),
+            "SELECT * FROM lists WHERE owner_id=? AND list_type='personal'",
+            (uid,)
         ).fetchone()
 
     return row
 
 
 def user_can_access_list(uid, list_id):
-    """Return the collab_lists row if user can access it; else None."""
     db = get_db()
-    cl = db.execute(
-        "SELECT * FROM collab_lists WHERE id=?",
+
+    row = db.execute(
+        "SELECT * FROM lists WHERE id=?",
         (list_id,),
     ).fetchone()
-    if not cl:
+
+    if not row:
         return None
 
-    #owner always has access
-    if cl["owner_id"] == uid:
-        return cl
+    if row["owner_id"] == uid:
+        return row
 
-    #if it's personal & not owner -> no access
-    if cl["list_type"] == "personal":
+    if row["list_type"] == "personal":
         return None
 
-    #for collab: check membership
-    member = db.execute(
-        "SELECT 1 FROM collab_members WHERE list_id=? AND user_id=?",
-        (list_id, uid),
-    ).fetchone()
+    members = json.loads(row["members"])
+    if uid in members:
+        return row
 
-    if member:
-        return cl
     return None
 
 
 def user_can_access_task(uid, task_id):
-    """Return (task_row, list_row) if user can access this task."""
     db = get_db()
-    row = db.execute(
-        """
-        SELECT t.*, cl.id AS cl_id, cl.owner_id, cl.list_type
+
+    row = db.execute("""
+        SELECT t.*, l.owner_id, l.list_type, l.members
         FROM tasks t
-        JOIN collab_lists cl ON t.list_id = cl.id
+        JOIN lists l ON t.list_id = l.id
         WHERE t.id = ?
-        """,
-        (task_id,),
-    ).fetchone()
+    """, (task_id,)).fetchone()
 
     if not row:
         return None, None
 
-    #owner
     if row["owner_id"] == uid:
         return row, row
 
-    #of personal & not owner
     if row["list_type"] == "personal":
         return None, None
 
-    #if collab, check membership
-    member = db.execute(
-        "SELECT 1 FROM collab_members WHERE list_id=? AND user_id=?",
-        (row["cl_id"], uid),
-    ).fetchone()
-
-    if member:
+    members = json.loads(row["members"])
+    if uid in members:
         return row, row
 
     return None, None
+
 
 
 ## AUTH ROUTES ##
@@ -176,10 +158,9 @@ def signup():
     )
     user_id = cur.lastrowid
 
-    #create a user's personal list
+    # Create user's personal list (new schema)
     cur.execute(
-        "INSERT INTO collab_lists (name, owner_id, list_type) "
-        "VALUES (?, ?, 'personal')",
+        "INSERT INTO lists (name, owner_id, list_type, members) VALUES (?, ?, 'personal', '[]')",
         ("My Tasks", user_id),
     )
 
@@ -325,8 +306,6 @@ def lists():
         return jsonify({"error": "Not authenticated"}), 401
 
     db = get_db()
-
-    #ensure user's personal TDL exists
     personal_row = ensure_personal_list(uid)
 
     personal = {
@@ -336,43 +315,30 @@ def lists():
     }
 
     owned = db.execute(
-        """
-        SELECT id, name, list_type
-        FROM collab_lists
-        WHERE owner_id=? AND list_type='collab'
-        ORDER BY id DESC
-        """,
-        (uid,),
+        "SELECT id, name, list_type FROM lists WHERE owner_id=? AND list_type='collab'",
+        (uid,)
     ).fetchall()
 
-    owned_collab = [
-        {"id": r["id"], "name": r["name"], "type": r["list_type"], "is_owner": True}
-        for r in owned
-    ]
+    owned_collab = [dict(r) | {"is_owner": True} for r in owned]
 
+    # member lists (user is inside members JSON)
     member = db.execute(
-        """
-        SELECT cl.id, cl.name, cl.list_type, u.name AS owner_name, u.id AS owner_id
-        FROM collab_lists cl
-        JOIN collab_members cm ON cm.list_id = cl.id
-        JOIN users u ON u.id = cl.owner_id
-        WHERE cm.user_id=? AND cl.list_type='collab'
-        ORDER BY cl.id DESC
-        """,
-        (uid,),
+        "SELECT * FROM lists WHERE list_type='collab'"
     ).fetchall()
 
-    member_collab = [
-        {
-            "id": r["id"],
-            "name": r["name"],
-            "type": r["list_type"],
-            "owner_name": r["owner_name"],
-            "owner_id": r["owner_id"],
-            "is_owner": False,
-        }
-        for r in member
-    ]
+    member_collab = []
+    for r in member:
+        members = json.loads(r["members"])
+        if uid in members and uid != r["owner_id"]:
+            member_collab.append({
+                "id": r["id"],
+                "name": r["name"],
+                "owner_id": r["owner_id"],
+                "owner_name": db.execute(
+                    "SELECT name FROM users WHERE id=?", (r["owner_id"],)
+                ).fetchone()["name"],
+                "is_owner": False
+            })
 
     return jsonify(
         {
@@ -398,8 +364,7 @@ def create_collab_list():
     db = get_db()
     cur = db.cursor()
     cur.execute(
-        "INSERT INTO collab_lists (name, owner_id, list_type) "
-        "VALUES (?, ?, 'collab')",
+        "INSERT INTO lists (name, owner_id, list_type, members) VALUES (?, ?, 'collab', '[]')",
         (name, uid),
     )
     list_id = cur.lastrowid
@@ -407,6 +372,7 @@ def create_collab_list():
     db.commit()
 
     return jsonify({"id": list_id, "name": name, "type": "collab"}), 201
+
 
 
 @app.post("/api/collab_lists/<int:list_id>/invite")
@@ -417,39 +383,33 @@ def invite_to_collab(list_id):
 
     db = get_db()
 
-    cl = db.execute(
-        "SELECT * FROM collab_lists WHERE id=?",
-        (list_id,),
-    ).fetchone()
+    cl = db.execute("SELECT * FROM lists WHERE id=?", (list_id,)).fetchone()
     if not cl:
         return jsonify({"error": "List not found"}), 404
 
     if cl["owner_id"] != uid:
-        return jsonify({"error": "Only the owner can invite members."}), 403
+        return jsonify({"error": "Only the owner can invite"}), 403
 
     data = request.json or {}
     username = data.get("username", "").strip()
-    if not username:
-        return jsonify({"error": "Username required"}), 400
 
     user = db.execute(
         "SELECT * FROM users WHERE username=?",
-        (username,),
+        (username,)
     ).fetchone()
-    if not user:
-        return jsonify({"error": "No user with that username"}), 404
 
-    #avoid duplicate membership
-    existing = db.execute(
-        "SELECT 1 FROM collab_members WHERE list_id=? AND user_id=?",
-        (list_id, user["id"]),
-    ).fetchone()
-    if existing:
-        return jsonify({"error": "User already in this list"}), 400
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    members = json.loads(cl["members"])
+    if user["id"] in members:
+        return jsonify({"error": "Already a member"}), 400
+
+    members.append(user["id"])
 
     db.execute(
-        "INSERT INTO collab_members (list_id, user_id) VALUES (?, ?)",
-        (list_id, user["id"]),
+        "UPDATE lists SET members=? WHERE id=?",
+        (json.dumps(members), list_id)
     )
     db.commit()
 

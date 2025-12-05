@@ -66,6 +66,18 @@
       <span id="toast-msg"></span>
     </div>
 
+    <script>
+    (async () => {
+      const res = await fetch("/api/me");
+      const data = await res.json();
+
+      if (data.user) {
+        //User is logged in -> force them to /todo
+        window.location.replace("/todo");
+      }
+    })();
+    </script>
+
     <script src="/static/accounts.js"></script>
 </body>
 </html>

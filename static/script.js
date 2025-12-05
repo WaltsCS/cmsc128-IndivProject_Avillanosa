@@ -14,6 +14,11 @@ const collabListContainer = document.getElementById("collabListContainer");
 const myTasksBtn = document.getElementById("myTasksBtn");
 const newCollabBtn = document.getElementById("newCollabBtn");
 
+const createListModal = document.getElementById("createListModal");
+const createListConfirm = document.getElementById("createListConfirm");
+const createListCancel = document.getElementById("createListCancel");
+const newListName = document.getElementById("newListName");
+
 const collabMeta = document.getElementById("collab-meta");
 const collabOwnerLabel = document.getElementById("collab-owner-label");
 const inviteForm = document.getElementById("inviteForm");
@@ -256,15 +261,28 @@ collabListContainer.addEventListener("click", async (e) => {
   await loadTasks();
 });
 
-newCollabBtn.addEventListener("click", async () => {
-  const name = prompt("Name for new collaborative list:");
-  if (!name) return;
+newCollabBtn.addEventListener("click", () => {
+  newListName.value = "";
+  createListModal.classList.add("show");
+});
+
+createListCancel.onclick = () => {
+  createListModal.classList.remove("show");
+};
+
+createListConfirm.onclick = async () => {
+  const name = newListName.value.trim();
+  if (!name) {
+    showToast("List name required.", "error");
+    return;
+  }
 
   const res = await fetch("/api/collab_lists", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
+
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     showToast(data.error || "Failed to create list", "error");
@@ -273,11 +291,14 @@ newCollabBtn.addEventListener("click", async () => {
 
   const created = await res.json();
   showToast("Collaborative list created!", "success");
+  
+  createListModal.classList.remove("show");
+
   currentListId = created.id;
   currentListType = "collab";
-
   await loadLists();
-});
+};
+
 
 /* INVITE FORM (ONLY OWNER CAN INVITE) */
 inviteForm.addEventListener("submit", async (e) => {
