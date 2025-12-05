@@ -6,7 +6,7 @@ from flask_bcrypt import Bcrypt
 import sqlite3, os, json
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(APP_DIR, "app.db")
+DB_PATH = os.environ.get("DATABASE_PATH", os.path.join(APP_DIR, "app.db"))
 SCHEMA_PATH = os.path.join(APP_DIR, "schema_app.sql")
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")

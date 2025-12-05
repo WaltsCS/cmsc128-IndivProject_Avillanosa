@@ -1,0 +1,20 @@
+services:
+  - name: todo-app
+    type: web
+    ports:
+      - port: 8000
+        protocol: http
+    routes:
+      - path: /
+    build:
+      type: docker
+      dockerfile: ./Dockerfile
+    env:
+      - key: DATABASE_PATH
+        value: /data/app.db
+    volumes:
+      - name: todo_volume
+        mount_path: /data
+volumes:
+  - name: todo_volume
+    size: 1GB
