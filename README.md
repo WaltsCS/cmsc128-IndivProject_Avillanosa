@@ -41,13 +41,13 @@ Online Deployment (Render)
 Must include:
 • Procfile
 • requirements.txt
-• render.yaml
+• koyeb.yaml
 • app.py
 • schema_app.sql
 • static files
 
 2. Login to Render
-Go to: https://render.com/
+Go to: https://app.koyeb.com/
 
 3. Create Web Service
 • Connect GitHub
@@ -55,16 +55,21 @@ Go to: https://render.com/
 • Use these settings:
 
 Setting	         Value
-Build Command	   pip install -r requirements.txt
-Start Command	   gunicorn app:app
-Instance	         Free
+Service type	   Web service
+Source	         Github Repo link
+Builder           Buildpack
+Environment       Default (No variables, no files)
+Instance          Free (0.1 vCPU, 512MB RAM, 2000MB Disk, Frankfurt Server)
+Scaling           Default (Autoscaling (0-1 instances/region))
+Volumes           Default (No volumes configured)
+Ports             8000
+Health Checks     Default
+Service Name      code
 
-4. Add Persistent Disk
-Name: data
-Path: /opt/render/project/src
 
-5. Deploy
-Render will give a publicly accessible URL.
+4. Deploy
+Koyeb will give a publicly accessible URL.
+(If there are changes, deploy with build, if not, use cache)
 
 Features Supported on Deployment
 • Multi-account login system
@@ -79,9 +84,9 @@ Features Supported on Deployment
 
 
 Example endpoints:
-1. GET /api/tasks   (This returns all tasks to JSON)
-2. POST /api/tasks
-   Content-Type: application/json   (Adds a new task)
-3. PUT /api/tasks/1
-   Content-Type: application/json   (Update a task)
+1. POST /api/signup   (This stores username, PW, and name to JSON)
+2. POST /api/tasks  (Adds a new task)
+3. PUT /api/tasks/1   (Update a task)
 4. DELETE /api/tasks/1   (Deletes a task)
+5. GET /api/tasks?list_id=5 (Get tasks from a list)
+6. POST /api/collab_lists/<list_id>/invite (Invite Existing User to Collaborative List)
