@@ -13,7 +13,7 @@ SCHEMA_PATH = os.path.join(APP_DIR, "schema_app.sql")
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 bcrypt = Bcrypt(app)
-app.secret_key = "change-me-in-prod"   #for session cookies
+app.secret_key = SECRET_KEY   #for session cookies
 
 
 ## ---------------- DB HELPERS ---------------- ##
