@@ -9,6 +9,7 @@ APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.environ.get("DATABASE_PATH", os.path.join(APP_DIR, "app.db"))
 SECRET_KEY = os.environ.get("SECRET_KEY", "local-dev-secret-key-change-in-prod")
 DEBUG_MODE = os.environ.get("FLASK_DEBUG", "0") == "1"
+SCHEMA_PATH = os.path.join(APP_DIR, "schema_app.sql")
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 bcrypt = Bcrypt(app)
