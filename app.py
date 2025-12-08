@@ -7,7 +7,8 @@ import sqlite3, os, json
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.environ.get("DATABASE_PATH", os.path.join(APP_DIR, "app.db"))
-SCHEMA_PATH = os.path.join(APP_DIR, "schema_app.sql")
+SECRET_KEY = os.environ.get("SECRET_KEY", "local-dev-secret-key-change-in-prod")
+DEBUG_MODE = os.environ.get("FLASK_DEBUG", "0") == "1"
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 bcrypt = Bcrypt(app)
@@ -555,4 +556,23 @@ def root():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 8000)),
+        debug=DEBUG_MODE
+    )
+
+
+#ONLY for Local deployment working: 
+# app.run(host="0.0.0.0", port=8000, debug=True)
+
+
+
+
+# LOCAL DEV ONLY
+# if __name__ == "__main__":
+#     app.run(
+#         host="0.0.0.0",
+#         port=int(os.environ.get("PORT", 8000)),
+#         debug=DEBUG_MODE
+#     )

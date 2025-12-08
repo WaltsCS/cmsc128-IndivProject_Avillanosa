@@ -1,31 +1,31 @@
-# Use official lightweight Python image
+#   MULTI-ACCOUNT TDL APP
+#   PRODUCTION DOCKERFILE
+
 FROM python:3.11-slim
+
+# Disable Python buffering for logs
+ENV PYTHONUNBUFFERED=1
+
+# Working directory
+WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Work directory
-WORKDIR /app
-
-# Copy requirements first (caching optimization)
+# Copy requirements first (leverages Docker layer caching)
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the whole project
+# Copy application code
 COPY . .
 
-# Environment variables
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_ENV=production
-ENV DATABASE_PATH=/data/app.db    
-# SQLite DB will live in persistent volume
-
-# Expose app port
+# Expose Flask port
 EXPOSE 8000
 
-# Start command for Gunicorn
-CMD gunicorn -b 0.0.0.0:8000 app:app
+# Run using gunicorn (production-grade server)
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "app:app"]

@@ -1,20 +1,27 @@
+# KOYEB DEPLOYMENT CONFIG
+
 services:
-  - name: todo-app
+  - name: tdl-webapp
     type: web
+    runtime: docker
+    dockerfile: Dockerfile
+
     ports:
       - port: 8000
         protocol: http
-    routes:
-      - path: /
-    build:
-      type: docker
-      dockerfile: ./Dockerfile
+
     env:
-      - key: DATABASE_PATH
-        value: /data/app.db
+      SECRET_KEY: "change-this-in-koyeb-ui"
+      FLASK_DEBUG: "0"
+      DATABASE_PATH: "/app/data/app.db"
+
     volumes:
-      - name: todo_volume
-        mount_path: /data
+      - name: tdl-volume
+        mount_path: /app/data
+
+    regions:
+      - fra  # Frankfurt region (free tier)
+
 volumes:
-  - name: todo_volume
+  - name: tdl-volume
     size: 1GB
